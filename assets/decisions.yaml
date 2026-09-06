@@ -1,0 +1,9 @@
+decisions:
+  - id: ""
+    date: YYYY-MM-DD
+    status: accepted
+    context: ""
+    decision: ""
+    reason: ""
+    rejected: []
+    affects_rules: []

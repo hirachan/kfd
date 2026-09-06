@@ -1,0 +1,113 @@
+id: participant-order-history
+name: 参加者向け注文履歴
+version: 1
+
+purpose:
+  why: |
+    参加者が自分の購入内容、支払い、返金の現在状態を主催者へ問い合わせず確認できるようにする。
+  scope:
+    - 参加者本人の注文一覧
+    - 注文明細と支払い・返金状態
+  out_of_scope:
+    - 管理者向け注文管理
+    - 注文内容の変更
+    - キャンセルと返金の実行
+
+contract:
+  actors:
+    participant:
+      permissions:
+        - 自分のアカウントに紐づく注文だけを閲覧できる
+
+  inputs:
+    system:
+      - 注文スナップショット
+      - 支払い状態
+      - 返金状態
+
+  rules:
+    access:
+      - id: own-orders-only
+        rule: |
+          ログイン参加者は自分の注文だけを閲覧できる。
+
+    presentation:
+      - id: immutable-purchase-description
+        rule: |
+          商品名、種類、単価、数量、合計は現在の商品設定ではなく注文時のスナップショットを表示する。
+      - id: current-payment-state
+        rule: |
+          支払いと返金は現在の確定状態を表示する。
+
+  states: []
+  transitions: []
+
+  ui:
+    participant_order_history:
+      purpose: 自分の注文と決済状態を確認する
+      shown_to:
+        - ログイン済み参加者
+      shows:
+        - 注文日時
+        - 注文ID
+        - 注文明細
+        - 税込合計
+        - 支払い状態
+        - 返金状態
+      does_not_show:
+        - Stripeの内部エラー
+        - Stripe Payment Intent ID
+        - 他人の注文
+      actions:
+        - 注文内容を確認する
+        - 参加者ホームへ戻る
+      navigation:
+        - 参加者ホームから開く
+      errors:
+        - 注文がない場合は空の状態を表示する
+
+  persistence:
+    stores: []
+    constraints: []
+    compatibility:
+      - 既存注文を変更せず読み取る
+
+  external_effects: []
+
+examples:
+  - name: 支払い済み注文を表示する
+    given:
+      owner: current-participant
+      order_status: paid
+      total_yen: 19000
+    when: 注文履歴を開く
+    then:
+      visible: true
+      status_label: 支払い済み
+      total: 19000円
+
+  - name: 他人の注文へアクセスする
+    given:
+      owner: another-participant
+    when: 注文URLを開く
+    then:
+      visible: false
+
+dependencies:
+  reads:
+    checkout-orders:
+      - participant_orders
+      - order_items
+    stripe-payments:
+      - payment_status
+      - refund_status
+  writes: {}
+
+mapping:
+  implementation:
+    primary:
+      - implementation/participant_order_history/
+    shared:
+      - implementation/templates/participant_home/home.html
+  tests:
+    - tests/conformance/test_participant_order_history.py

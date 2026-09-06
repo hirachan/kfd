@@ -1,0 +1,12 @@
+id: ''
+name: ''
+purpose:
+  why: ''
+contract:
+  rules: []
+dependencies: {}
+mapping:
+  implementation:
+    primary: []
+    shared: []
+  tests: []
