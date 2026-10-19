@@ -1,9 +1,8 @@
 ---
 name: kfd
-description: Apply Knowledge-First Development (KFD) 7.3 to new or existing software projects. Use when a project declares KFD, when the human asks to adopt or use KFD, or when making product-meaning changes, bug fixes, business-rule changes, UI behavior changes, persistence/security changes, tests, or implementation changes that must stay aligned with explicit Knowledge.
+description: Apply Knowledge-First Development (KFD) 7.4 to new or existing software projects. Use when a project declares KFD, when the human asks to adopt or use KFD, or when making product-meaning changes, bug fixes, business-rule changes, UI behavior changes, persistence/security changes, tests, or implementation changes that must stay aligned with explicit Knowledge.
 ---
-
-# Knowledge-First Development (KFD) 7.3
+# Knowledge-First Development (KFD) 7.4
 
 KFD keeps current product meaning explicit and reviewable before implementation changes.
 
@@ -23,23 +22,20 @@ Apply this skill when any of the following is true:
 - the human explicitly asks to adopt or use KFD;
 - the current task is part of a project that already uses KFD.
 
-If the repository declares `KFD_VERSION`, respect that declaration. This skill implements KFD 7.3. If a project declares an incompatible KFD version, do not silently reinterpret it as 7.3.
+If the repository declares `KFD_VERSION`, respect that declaration. This skill implements KFD 7.4. If a project declares an incompatible KFD version, do not silently reinterpret it as 7.4.
 
 ## Adoption and human language
 
 KFD must be adoptable at any time, including after substantial implementation already exists. Do not require a separate initialization command or migration step.
 
 When KFD is first used in a project:
-
 1. Preserve the project's existing source layout, test layout, build system, documentation, and existing `AGENTS.md` instructions.
 2. If the human-facing language is not yet established, ask the human which language to use before generating substantive Knowledge or human-facing documentation.
 3. Record KFD in project `AGENTS.md`. If `AGENTS.md` already exists, merge a small KFD section into it instead of replacing unrelated instructions. Record:
-
    ```text
-   KFD_VERSION: 7.3
+   KFD_VERSION: 7.4
    PROJECT_HUMAN_LANGUAGE: <language>
    ```
-
 4. Create `knowledge/index.yaml` only if it does not exist.
 5. Create `parking-lot.md` only if it does not exist.
 6. Do not create `checkpoint.yaml` until interrupted work actually needs resumable context.
@@ -80,7 +76,6 @@ Read `references/knowledge-model.md` when creating a Knowledge Unit, changing de
 `parking-lot.md` is the pre-Knowledge area for valuable product intent, ideas, and observations that are worth preserving but are not part of the current implementation.
 
 The boundary is based on current work, not merely on size:
-
 - if an instruction is part of the work being implemented now, refine it directly into Knowledge;
 - if valuable intent is not being implemented now, preserve it in the Parking Lot;
 - a small, clear instruction normally goes directly to the relevant Knowledge Unit;
@@ -107,7 +102,6 @@ Read `references/parking-lot-checkpoint.md` when deciding whether to park an ite
 ## Prompt intake
 
 For each user instruction:
-
 1. identify the smallest coherent slice actually being implemented now;
 2. locate or create the Knowledge Unit(s) required for that slice;
 3. preserve valuable remaining intent in the Parking Lot without fully specifying it;
@@ -178,11 +172,12 @@ Start with:
 6. implementation paths listed for the target Knowledge Unit.
 
 Expand context only when evidence requires it, including when:
-
 - a declared dependency must be understood;
 - a test exposes an unexplained effect;
 - implementation evidence conflicts with the Knowledge;
 - the requested change crosses Knowledge Unit boundaries.
+
+For a product-meaning change, identify the affected business concepts and search for other Knowledge rules describing the same behavior, including rules in the current unit, undeclared dependencies, and relevant maintained product documents. Search narrowly first; expand only where relevant evidence leads.
 
 Do not scan or understand unrelated parts of the repository merely for completeness.
 
@@ -204,23 +199,24 @@ A change to externally visible product meaning, including:
 - external effects or integrations.
 
 Required order:
-
 1. Resolve material ambiguity with **Decision Required**.
-2. Update `knowledge.yaml`.
-3. Show **Knowledge Review** and wait for approval.
-4. Update or add tests.
-5. Implement.
-6. Update index metadata if dependencies, ownership, or evidence changed.
-7. Regenerate affected human-facing views when present.
-8. Record an important decision only when it prevents future misunderstanding.
+2. Identify affected existing rules, including related rules outside the target unit. Revise or replace obsolete rules rather than merely adding contradictory exceptions; keep historical rules only with explicit applicability conditions.
+3. Update `knowledge.yaml` in every affected unit and check the changed business concepts for contradictions before review.
+4. Show **Knowledge Review** and wait for approval.
+5. Update or add tests.
+6. Implement.
+7. Update index metadata if dependencies, ownership, or evidence changed.
+8. Regenerate affected human-facing views when present.
+9. Record an important decision only when it prevents future misunderstanding.
 
 ### Knowledge-preserving bug fix
 
 When observed behavior clearly violates written Knowledge:
 
-1. add or update a regression test;
-2. fix the implementation;
-3. verify affected and full tests.
+1. check that the relevant Knowledge rules are internally consistent; if they conflict, use **Decision Required** rather than choosing one rule or inventing an exception;
+2. add or update a regression test;
+3. fix the implementation;
+4. verify affected and full tests.
 
 Do not require Knowledge Review and do not rewrite Knowledge unless it was insufficient to identify the bug.
 
@@ -239,6 +235,7 @@ Typical triggers:
 - two reasonable interpretations produce different visible results;
 - persistence, migration, permissions, privacy, or security is not specified;
 - the request conflicts with current Knowledge;
+- relevant Knowledge rules contradict one another and explicit human intent does not resolve the contradiction;
 - another Knowledge Unit would need to change what it owns;
 - UI meaning or disclosure is unclear.
 
@@ -261,6 +258,8 @@ Knowledge Review: <Knowledge Unit name>
 Approve this product meaning to continue.
 ```
 
+For a change to an existing business rule, also briefly identify affected rules that were revised, preserved, or made historical, including related rules left unchanged. Report any unresolved contradiction rather than declaring the rules consistent without checking.
+
 Conversation is not a substitute for updating `knowledge.yaml`.
 
 Use `assets/knowledge-review.md` when a fuller review artifact helps.
@@ -268,7 +267,6 @@ Use `assets/knowledge-review.md` when a fuller review artifact helps.
 ## Cross-Knowledge changes
 
 The index records dependencies and implementation ownership.
-
 - Reading another Knowledge Unit's published output does not require stopping when the read does not change its meaning. Update dependency metadata when needed.
 - Changing another Knowledge Unit's owned product meaning requires a Decision Required and review of every affected Knowledge Unit.
 - One implementation file must not be independently owned by multiple Knowledge Units. Shared files must be marked `shared`.
@@ -316,33 +314,13 @@ A good Knowledge Unit contains enough meaning to change safely without unrelated
 
 Do not split merely because a file is long. Do not reorganize implementation merely to mirror the Knowledge hierarchy.
 
-## Knowledge Consistency
-
-Before approving or implementing a Knowledge change:
-
-1. Identify the business rules and concepts affected by the change.
-2. Search other Knowledge Units for rules that describe the same behavior, including indirect references and exceptions.
-3. Check whether the proposed change makes any existing Knowledge outdated, contradictory, or ambiguous.
-4. Prefer one authoritative definition of a shared business rule. Other Knowledge Units should reference that definition instead of independently redefining it.
-5. Preserve intentional historical rules only when their applicability conditions are explicit.
-6. If two Knowledge rules contradict each other, do not invent an exception to reconcile them. Use Decision Required unless explicit human intent resolves the conflict.
-7. Include affected Knowledge Units, preserved behaviors, and detected inconsistencies in Knowledge Review.
-
-Before fixing an implementation inconsistency:
-
-1. Check whether the relevant Knowledge is internally consistent.
-2. If the Knowledge is contradictory or ambiguous, do not modify correct implementation behavior to satisfy an arbitrarily selected rule.
-3. Resolve the Knowledge inconsistency first, then update Tests and Implementation.
-
-Keep this verification limited to the affected business concepts. Do not load or rewrite the entire Knowledge Base unless necessary.
-
 ## Completion check
 
 Before finishing, verify:
-
 - the change classification was correct;
 - no unresolved material decision remains;
 - current Knowledge matches the result;
+- affected Knowledge rules are mutually consistent, and obsolete unconditional rules have not been left active;
 - Knowledge Review was approved when required;
 - relevant tests were updated and run;
 - dependencies and ownership are accurate;
