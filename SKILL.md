@@ -1,8 +1,8 @@
 ---
 name: kfd
-description: Apply Knowledge-First Development (KFD) 7.4 to new or existing software projects. Use when a project declares KFD, when the human asks to adopt or use KFD, or when making product-meaning changes, bug fixes, business-rule changes, UI behavior changes, persistence/security changes, tests, or implementation changes that must stay aligned with explicit Knowledge.
+description: Apply Knowledge-First Development (KFD) 7.4.1 to new or existing software projects. Use when a project declares KFD, when the human asks to adopt or use KFD, or when making product-meaning changes, bug fixes, business-rule changes, UI behavior changes, persistence/security changes, tests, or implementation changes that must stay aligned with explicit Knowledge.
 ---
-# Knowledge-First Development (KFD) 7.4
+# Knowledge-First Development (KFD) 7.4.1
 
 KFD keeps current product meaning explicit and reviewable before implementation changes.
 
@@ -22,7 +22,7 @@ Apply this skill when any of the following is true:
 - the human explicitly asks to adopt or use KFD;
 - the current task is part of a project that already uses KFD.
 
-If the repository declares `KFD_VERSION`, respect that declaration. This skill implements KFD 7.4. If a project declares an incompatible KFD version, do not silently reinterpret it as 7.4.
+If the repository declares `KFD_VERSION`, respect that declaration. This skill implements KFD 7.4.1. If a project declares an incompatible KFD version, do not silently reinterpret it as 7.4.1.
 
 ## Adoption and human language
 
@@ -33,7 +33,7 @@ When KFD is first used in a project:
 2. If the human-facing language is not yet established, ask the human which language to use before generating substantive Knowledge or human-facing documentation.
 3. Record KFD in project `AGENTS.md`. If `AGENTS.md` already exists, merge a small KFD section into it instead of replacing unrelated instructions. Record:
    ```text
-   KFD_VERSION: 7.4
+   KFD_VERSION: 7.4.1
    PROJECT_HUMAN_LANGUAGE: <language>
    ```
 4. Create `knowledge/index.yaml` only if it does not exist.
@@ -201,13 +201,25 @@ A change to externally visible product meaning, including:
 Required order:
 1. Resolve material ambiguity with **Decision Required**.
 2. Identify affected existing rules, including related rules outside the target unit. Revise or replace obsolete rules rather than merely adding contradictory exceptions; keep historical rules only with explicit applicability conditions.
-3. Update `knowledge.yaml` in every affected unit and check the changed business concepts for contradictions before review.
+3. Update `knowledge.yaml` in every affected unit. Check the applicability of each related rule against the changed conditions and affected operations before review.
 4. Show **Knowledge Review** and wait for approval.
 5. Update or add tests.
 6. Implement.
 7. Update index metadata if dependencies, ownership, or evidence changed.
 8. Regenerate affected human-facing views when present.
 9. Record an important decision only when it prevents future misunderstanding.
+
+### Rule applicability check
+
+For a product-meaning change that affects an existing business concept, check the related rules found through **Context discipline** before Knowledge Review:
+
+1. For each related rule, decide whether it remains valid under the new requirement, needs a narrower applicability condition, or is superseded. Include rules left unchanged.
+2. Check the conditions at newly introduced boundaries and across distinct operations that invoke the same business behavior (for example, registration, cancellation, and expiration invoking waitlist promotion).
+3. Revise or retire any unconditional rule that no longer applies universally. Prefer referencing a shared rule over repeating its conditions in separate operation-specific rules.
+4. For rules preserved unchanged, confirm a representative situation where they still apply and, when relevant, a boundary case where their applicability changes.
+5. If the available intent cannot establish which interpretation is current, use **Decision Required**. Do not infer a new exception merely to reconcile conflicting text.
+
+Keep this check proportional to the changed concept. Do not create a project-wide rule inventory or scan unrelated Knowledge Units.
 
 ### Knowledge-preserving bug fix
 
@@ -258,7 +270,7 @@ Knowledge Review: <Knowledge Unit name>
 Approve this product meaning to continue.
 ```
 
-For a change to an existing business rule, also briefly identify affected rules that were revised, preserved, or made historical, including related rules left unchanged. Report any unresolved contradiction rather than declaring the rules consistent without checking.
+For a change to an existing business rule, briefly identify related rules revised, preserved (and why still applicable), or retired/superseded. Include any relevant new boundary and operations sharing that behavior. List unresolved applicability questions; do not claim consistency merely because no textual contradiction was found.
 
 Conversation is not a substitute for updating `knowledge.yaml`.
 
@@ -320,7 +332,7 @@ Before finishing, verify:
 - the change classification was correct;
 - no unresolved material decision remains;
 - current Knowledge matches the result;
-- affected Knowledge rules are mutually consistent, and obsolete unconditional rules have not been left active;
+- affected Knowledge rules have been checked for applicability across changed boundaries and operations, remain mutually consistent, and obsolete unconditional rules have not been left active;
 - Knowledge Review was approved when required;
 - relevant tests were updated and run;
 - dependencies and ownership are accurate;
