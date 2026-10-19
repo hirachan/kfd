@@ -316,6 +316,26 @@ A good Knowledge Unit contains enough meaning to change safely without unrelated
 
 Do not split merely because a file is long. Do not reorganize implementation merely to mirror the Knowledge hierarchy.
 
+## Knowledge Consistency
+
+Before approving or implementing a Knowledge change:
+
+1. Identify the business rules and concepts affected by the change.
+2. Search other Knowledge Units for rules that describe the same behavior, including indirect references and exceptions.
+3. Check whether the proposed change makes any existing Knowledge outdated, contradictory, or ambiguous.
+4. Prefer one authoritative definition of a shared business rule. Other Knowledge Units should reference that definition instead of independently redefining it.
+5. Preserve intentional historical rules only when their applicability conditions are explicit.
+6. If two Knowledge rules contradict each other, do not invent an exception to reconcile them. Use Decision Required unless explicit human intent resolves the conflict.
+7. Include affected Knowledge Units, preserved behaviors, and detected inconsistencies in Knowledge Review.
+
+Before fixing an implementation inconsistency:
+
+1. Check whether the relevant Knowledge is internally consistent.
+2. If the Knowledge is contradictory or ambiguous, do not modify correct implementation behavior to satisfy an arbitrarily selected rule.
+3. Resolve the Knowledge inconsistency first, then update Tests and Implementation.
+
+Keep this verification limited to the affected business concepts. Do not load or rewrite the entire Knowledge Base unless necessary.
+
 ## Completion check
 
 Before finishing, verify:
