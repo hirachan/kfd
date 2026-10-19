@@ -1,8 +1,8 @@
 ---
 name: kfd
-description: Apply Knowledge-First Development (KFD) 7.4.1 to new or existing software projects. Use when a project declares KFD, when the human asks to adopt or use KFD, or when making product-meaning changes, bug fixes, business-rule changes, UI behavior changes, persistence/security changes, tests, or implementation changes that must stay aligned with explicit Knowledge.
+description: Apply Knowledge-First Development (KFD) 7.4.2 to new or existing software projects. Use when a project declares KFD, when the human asks to adopt or use KFD, or when making product-meaning changes, bug fixes, business-rule changes, UI behavior changes, persistence/security changes, tests, or implementation changes that must stay aligned with explicit Knowledge.
 ---
-# Knowledge-First Development (KFD) 7.4.1
+# Knowledge-First Development (KFD) 7.4.2
 
 KFD keeps current product meaning explicit and reviewable before implementation changes.
 
@@ -22,7 +22,7 @@ Apply this skill when any of the following is true:
 - the human explicitly asks to adopt or use KFD;
 - the current task is part of a project that already uses KFD.
 
-If the repository declares `KFD_VERSION`, respect that declaration. This skill implements KFD 7.4.1. If a project declares an incompatible KFD version, do not silently reinterpret it as 7.4.1.
+If the repository declares `KFD_VERSION`, respect that declaration. This skill implements KFD 7.4.2. If a project declares an incompatible KFD version, do not silently reinterpret it as 7.4.2.
 
 ## Adoption and human language
 
@@ -33,7 +33,7 @@ When KFD is first used in a project:
 2. If the human-facing language is not yet established, ask the human which language to use before generating substantive Knowledge or human-facing documentation.
 3. Record KFD in project `AGENTS.md`. If `AGENTS.md` already exists, merge a small KFD section into it instead of replacing unrelated instructions. Record:
    ```text
-   KFD_VERSION: 7.4.1
+   KFD_VERSION: 7.4.2
    PROJECT_HUMAN_LANGUAGE: <language>
    ```
 4. Create `knowledge/index.yaml` only if it does not exist.
@@ -202,12 +202,13 @@ Required order:
 1. Resolve material ambiguity with **Decision Required**.
 2. Identify affected existing rules, including related rules outside the target unit. Revise or replace obsolete rules rather than merely adding contradictory exceptions; keep historical rules only with explicit applicability conditions.
 3. Update `knowledge.yaml` in every affected unit. Check the applicability of each related rule against the changed conditions and affected operations before review.
-4. Show **Knowledge Review** and wait for approval.
-5. Update or add tests.
-6. Implement.
-7. Update index metadata if dependencies, ownership, or evidence changed.
-8. Regenerate affected human-facing views when present.
-9. Record an important decision only when it prevents future misunderstanding.
+4. Re-read the saved Knowledge files and verify that intended revisions actually landed and relevant active rules are consistent. Route any unresolved product-meaning conflict to **Decision Required** before review.
+5. Show **Knowledge Review** of the verified saved changes and wait for approval.
+6. Update or add tests.
+7. Implement.
+8. Update index metadata if dependencies, ownership, or evidence changed.
+9. Regenerate affected human-facing views when present.
+10. Record an important decision only when it prevents future misunderstanding.
 
 ### Rule applicability check
 
@@ -221,11 +222,27 @@ For a product-meaning change that affects an existing business concept, check th
 
 Keep this check proportional to the changed concept. Do not create a project-wide rule inventory or scan unrelated Knowledge Units.
 
+### Saved Knowledge verification
+
+Before Knowledge Review, and again before completing a product-meaning change:
+
+1. Re-read the actual saved Knowledge files for the affected concepts; do not rely on planned edits, patch output, or review prose.
+2. Verify that each rule marked revised or retired was actually changed, and that preserved rules remain applicable under the new conditions and relevant operations.
+3. If an edit failed or did not land, correct it and re-read the files. An editing failure alone is not a product-meaning decision.
+4. Compare the active saved rules for incompatible behavior under overlapping applicability conditions. Include relevant rules left unchanged and maintained product documents that claim current normative authority.
+5. If a genuine conflict remains, emit **Decision Required** with the conflicting sources, overlapping conditions, observable consequences, concrete alternatives, and a justified recommendation when available. Do not silently choose one rule, invent an exception, or declare consistency.
+6. Block the Knowledge Review and dependent Tests/Implementation until the required decision is approved and reflected in saved Knowledge. Unrelated work may continue when safely independent.
+7. After the decision, revise or retire affected rules, re-read saved files, verify consistency, then present the actual resulting Knowledge for Review. If a material edit follows approval, present the revised Review for approval again.
+
+A new explicit requirement can unambiguously supersede an old rule: update the obsolete rule and verify the saved result rather than treating a resolved replacement as a conflict. If two active saved rules still disagree, however, do not waive Decision Required merely because one interpretation seems preferable.
+
+Keep verification limited to affected concepts. Do not introduce a project-wide inventory or a new mandatory file.
+
 ### Knowledge-preserving bug fix
 
 When observed behavior clearly violates written Knowledge:
 
-1. check that the relevant Knowledge rules are internally consistent; if they conflict, use **Decision Required** rather than choosing one rule or inventing an exception;
+1. check actual saved relevant Knowledge for conflicting active rules; if they conflict, issue **Decision Required** and block dependent fixes until resolved rather than choosing one rule or inventing an exception;
 2. add or update a regression test;
 3. fix the implementation;
 4. verify affected and full tests.
@@ -247,9 +264,11 @@ Typical triggers:
 - two reasonable interpretations produce different visible results;
 - persistence, migration, permissions, privacy, or security is not specified;
 - the request conflicts with current Knowledge;
-- relevant Knowledge rules contradict one another and explicit human intent does not resolve the contradiction;
+- active saved Knowledge rules prescribe incompatible behavior under overlapping conditions, including when a related rule was left unchanged;
 - another Knowledge Unit would need to change what it owns;
 - UI meaning or disclosure is unclear.
+
+For a Knowledge conflict, **Decision Required** must identify the conflicting rule IDs or locations, overlap conditions, affected behavior, available resolutions, and any defensible recommendation. Do not treat Knowledge Review approval or silence as approval of a conflict resolution. Reconcile the saved rules only after the decision is approved; then re-check consistency.
 
 Use concrete choices. Follow `assets/decision-required.md` when a fuller review artifact helps.
 
@@ -270,7 +289,7 @@ Knowledge Review: <Knowledge Unit name>
 Approve this product meaning to continue.
 ```
 
-For a change to an existing business rule, briefly identify related rules revised, preserved (and why still applicable), or retired/superseded. Include any relevant new boundary and operations sharing that behavior. List unresolved applicability questions; do not claim consistency merely because no textual contradiction was found.
+For a change to an existing business rule, briefly identify related rules revised, preserved (and why still applicable), or retired/superseded. Include any relevant new boundary and operations sharing that behavior. Base the review on verified saved files, not intended edits. If a material Knowledge conflict is found, present **Decision Required** first; do not claim consistency or request approval of conflicting Knowledge.
 
 Conversation is not a substitute for updating `knowledge.yaml`.
 
@@ -331,7 +350,9 @@ Do not split merely because a file is long. Do not reorganize implementation mer
 Before finishing, verify:
 - the change classification was correct;
 - no unresolved material decision remains;
-- current Knowledge matches the result;
+- current saved Knowledge matches the result and all intended Knowledge edits were verified after saving;
+- no unresolved conflict among relevant active Knowledge rules remains (any conflict was routed through Decision Required);
+- Knowledge Review reflects the verified saved files, and material later edits were re-reviewed;
 - affected Knowledge rules have been checked for applicability across changed boundaries and operations, remain mutually consistent, and obsolete unconditional rules have not been left active;
 - Knowledge Review was approved when required;
 - relevant tests were updated and run;
