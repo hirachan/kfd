@@ -1,10 +1,14 @@
-<!-- GENERATED FROM KFD KNOWLEDGE. DO NOT EDIT DIRECTLY. -->
+<!--
+GENERATED FROM KFD KNOWLEDGE. DO NOT EDIT DIRECTLY.
+kfd-sources:
+  participant-order-history: 296b714125f6
+-->
 
 # User Stories
 
 ## 注文履歴を確認する
 
-参加者として、自分が購入した内容と現在の支払い・返金状態を確認できる。これにより、主催者へ問い合わせなくても注文状況を把握できる。
+参加者として、自分が購入した内容と現在の支払い・返金状態を確認できる。 {participant-order-history/own-orders-only, participant-order-history/immutable-purchase-description, participant-order-history/current-payment-state} これにより、主催者へ問い合わせなくても注文状況を把握できる。
 
 ### 閲覧できる情報
 
@@ -17,11 +21,11 @@
 
 ### 保証されること
 
-- ログイン参加者は自分の注文だけを閲覧できる。
-- 商品名、種類、単価、数量、合計は注文時点の内容を表示する。
-- 支払い・返金については現在の確定状態を表示する。
-- 他人の注文やStripeの内部情報は表示しない。
-- 注文がない場合は空の状態を表示する。
+- ログイン参加者は自分の注文だけを閲覧できる。 {participant-order-history/own-orders-only}
+- 商品名、種類、単価、数量、合計は注文時点の内容を表示する。 {participant-order-history/immutable-purchase-description}
+- 支払い・返金については現在の確定状態を表示する。 {participant-order-history/current-payment-state}
+- 他人の注文やStripeの内部情報は表示しない。 {participant-order-history/own-orders-only, participant-order-history/hide-payment-internals}
+- 注文がない場合は空の状態を表示する。 {participant-order-history/empty-history-state}
 
 ### 対象外
 

@@ -1,0 +1,9 @@
+decisions:
+  - id: private-history
+    date: 2026-01-01
+    status: accepted
+    decision: Scope history by stable customer identifier.
+    context: Customers share the service.
+    reason: Keep each customer's history private.
+    rejected: [Public order history]
+    affects_rules: [own-only, public-history, profiles/stable-id]

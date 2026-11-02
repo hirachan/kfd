@@ -1,0 +1,7 @@
+knowledge:
+  orders:
+    name: Orders
+    summary: Publish the customer's order history.
+  profiles:
+    name: Profiles
+views: [order-history.txt]

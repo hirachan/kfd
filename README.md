@@ -30,7 +30,7 @@ This is one form of technical debt: past implementation choices increase the cos
 
 That led to a more fundamental question:
 
-> If I ask AI to writes the code, does source code still need to be the place where humans understand the product?
+> If I ask AI to write the code, does source code still need to be the place where humans understand the product?
 
 One extreme answer would be to remove programming languages entirely and generate executable binaries directly from natural language.
 
@@ -52,6 +52,8 @@ For each unit:
 - tests provide **Evidence** that the implementation conforms to that Knowledge;
 - source code is the **How**;
 - `decisions.yaml` optionally preserves important past decisions that would otherwise be rediscovered incorrectly.
+
+Rules may optionally describe applicability, shared-rule references, retirement, and successors with `applies_when`, `uses`, `status`, and `superseded_by`; see [the Knowledge model](references/knowledge-model.md).
 
 The implementation is still important. It just no longer has to carry the full burden of explaining the product to humans and AI at the same time.
 
@@ -117,6 +119,10 @@ This gives humans a compact review surface for questions such as:
 
 The human reviews product meaning. The agent can handle much more of the implementation detail.
 
+Only a human's explicit approval in the conversation counts; silence or a timeout does not. When committing is requested or expected by the repository workflow, commit approved Knowledge separately from tests and implementation with the trailer `KFD-Review: approved` (and `Reviewed-by: <name>` when known). Otherwise, report which Knowledge changes were approved; KFD does not require a commit.
+
+Without a human available, update and verify changed Knowledge, then stop before tests and implementation and hand it over for review: for example, open a Knowledge-only draft PR with the Knowledge Review text when allowed, or leave the change uncommitted/on its branch and report that text. A **Decision Required** also stops the run; absence of a human is never approval. Knowledge-preserving bug fixes and meaning-preserving changes can proceed without human approval.
+
 ## Existing projects can adopt KFD gradually
 
 KFD is not only for new projects.
@@ -159,15 +165,17 @@ A project using KFD normally contains:
 project-root/
   AGENTS.md
   parking-lot.md
-  checkpoint.yaml          # optional
+  checkpoint.yaml          # optional, gitignored local memory
   knowledge/
-    index.yaml
+    index.yaml             # catalog of units and generated views
     <knowledge-id>/
-      knowledge.yaml
+      knowledge.yaml       # product meaning + dependencies + mapping
       decisions.yaml       # optional
   <existing source and test layout>
   userstories.md           # generated view; optional
 ```
+
+File formats are defined by the JSON Schemas in `schema/`.
 
 The shared Skill contains the KFD method. The repository contains that product's Knowledge.
 
@@ -215,6 +223,8 @@ A generated view must:
 - never invent rules, states, permissions, guarantees, or behavior;
 - clearly state that the file is generated.
 
+Register each generated view's project-relative path in `knowledge/index.yaml` under `views`. Start the file with the generated-file header and `kfd-sources` hashes for its source units, and cite supporting rules after each guarantee or rule sentence using `{unit-id/rule-id}`. The linter reports stale source hashes so the view can be regenerated; see [the Knowledge model](references/knowledge-model.md) for the header format.
+
 `userstories.md` is **not another source of truth**.
 
 ```text
@@ -249,6 +259,38 @@ On first use, the agent adds only the KFD files that are actually needed, preser
 
 To make KFD usage visible to everyone who clones the repository, commit a small KFD declaration in `AGENTS.md` together with the project's Knowledge files.
 
+If tool-specific instruction files already exist, point them to `AGENTS.md` rather than duplicating the KFD declaration: use an `@AGENTS.md` import in `CLAUDE.md`, and a short pointer in Cursor's `.cursor/rules/`, `GEMINI.md`, or `.github/copilot-instructions.md`. Do not create these files speculatively.
+
+### Versioning
+
+Declare the project's KFD version as `KFD_VERSION: <version>` in its `AGENTS.md`, using `MAJOR.MINOR.PATCH` (PATCH may be omitted). A Skill can serve the project when their MAJOR versions match and the project's MINOR is no newer than the Skill's; PATCH does not affect compatibility. If incompatible, stop and tell the human rather than silently reinterpreting the project. When the Skill's MINOR is newer, follow the Skill; the agent may propose updating the declaration but must not change it silently.
+
+Release history is in `CHANGELOG.md`.
+
+## Validating a KFD project
+
+The optional linter can be run from this Skill repository:
+
+```sh
+uv run scripts/kfd_lint.py path/to/project
+```
+
+Alternatively, install its dependencies with `pip install pyyaml jsonschema`, then run `python3 scripts/kfd_lint.py path/to/project`. Add `--strict` to treat warnings as failures. Use `--view-header` to generate the required header for registered views.
+
+It checks file structure against the schemas, index↔unit consistency, unit and rule IDs, mapping paths and ownership overlap, dependencies, rule lifecycle references (`uses`, `superseded_by`, and retired rules), `Conforms to <unit-id>/<rule-id>` markers in mapped tests, decision rule references, registered views (header, source hashes, and citations), and `KFD_VERSION` compatibility.
+
+This is a mechanical check, not a substitute for Knowledge Review.
+
+## Evaluating the Skill
+
+`evals/` contains scenarios for checking the Skill's agent behavior, separate from project linting. Run them with your agent command:
+
+```sh
+python3 evals/run_evals.py --agent-cmd '...'
+```
+
+Scenarios can also run project commands after the agent run through the `commands_succeed` expectation; each command must exit successfully. The harness is POSIX-only and runs these commands with `sh`. See [the eval guide](evals/README.md) for command templates, scenario selection, and results.
+
 ## Skill repository structure
 
 ```text
@@ -256,6 +298,12 @@ SKILL.md            KFD workflow and agent instructions
 references/         detailed material loaded when needed
 assets/             templates used when creating KFD files
 examples/           worked examples for reference
+schema/             JSON Schemas for KFD files
+scripts/            optional project linter
+tests/              linter tests
+evals/              Skill behavior scenarios and evaluation harness
+tools/              repository maintenance checks
+VERSION             Skill version
 README.md           this document
 README_ja.md        Japanese version
 CHANGELOG.md        version history

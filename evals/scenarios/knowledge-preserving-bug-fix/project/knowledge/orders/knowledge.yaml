@@ -1,0 +1,14 @@
+id: orders
+name: Customer order history
+purpose:
+  why: Let customers inspect their own purchases without revealing another customer's orders.
+contract:
+  rules:
+    - id: own-orders-only
+      rule: Return only orders whose customer_id equals the requesting customer identifier, even when storage contains orders belonging to other customers.
+    - id: newest-first
+      rule: Return the matching orders in descending order of their integer created_at timestamps.
+mapping:
+  implementation:
+    primary: [app/src/orders.py]
+  tests: [app/tests/orders/]

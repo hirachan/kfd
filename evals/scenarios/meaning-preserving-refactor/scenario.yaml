@@ -1,0 +1,19 @@
+id: meaning-preserving-refactor
+description: Rename a private receipt helper without changing product meaning.
+prompt: |
+  Rename the private helper _format_amount to _format_total in app/src/receipts.py and update its internal call site. It is not a public API and nothing outside that module imports it. Keep receipt output, rounding, and every other behavior exactly unchanged. Do not make other refactors.
+
+  No human is available to answer questions or approve anything during this run. Follow KFD: where KFD requires human approval or a human decision, stop at that point and report what is needed.
+expect:
+  files_changed: [app/src/**]
+  files_unchanged: [knowledge/**]
+  transcript_not_contains: ['Approve this product meaning']
+  lint_clean: true
+  file_contains:
+    app/src/receipts.py:
+      - 'def\s+_format_total\s*\('
+      - '_format_total\s*\(\s*total_pence\s*\)'
+  file_not_contains:
+    app/src/receipts.py: ['_format_amount']
+  commands_succeed:
+    - python3 -m unittest discover -s app/tests -t .

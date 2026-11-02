@@ -1,0 +1,12 @@
+id: confirmation
+name: Order confirmation
+purpose:
+  why: Show a recognizable confirmation after a successful order.
+contract:
+  rules:
+    - id: confirmation-text
+      rule: A confirmation displays the text Order confirmed followed by the order identifier. Label color is decorative and carries no product meaning.
+mapping:
+  implementation:
+    primary: [app/src/confirmation.py]
+  tests: [app/tests/confirmation/]

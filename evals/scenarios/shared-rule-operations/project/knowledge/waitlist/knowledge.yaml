@@ -1,0 +1,21 @@
+id: waitlist
+name: Shared waitlist promotion
+purpose:
+  why: Reuse one fair promotion policy across all operations that can make a seat available.
+contract:
+  rules:
+    - id: promotion-condition
+      rule: After registration, cancellation, or reservation expiration, if at least one place is free and the waitlist is nonempty, promote exactly the first waiting attendee to confirmed. Otherwise do not promote anyone.
+    - id: registration-promotes
+      rule: Append the new attendee to the waitlist, then invoke shared promotion under promotion-condition.
+      uses: [promotion-condition]
+    - id: cancellation-promotes
+      rule: Remove the cancelling attendee from confirmed, then invoke shared promotion under promotion-condition after releasing that place.
+      uses: [promotion-condition]
+    - id: expiration-promotes
+      rule: Remove the attendee with an expired reservation from confirmed, then invoke shared promotion under promotion-condition after releasing that place.
+      uses: [promotion-condition]
+mapping:
+  implementation:
+    primary: [app/src/waitlist.py, app/src/registration.py, app/src/cancellation.py, app/src/expiration.py]
+  tests: [app/tests/waitlist/, app/tests/registration/, app/tests/cancellation/, app/tests/expiration/]

@@ -1,0 +1,14 @@
+id: customer
+name: Customer cancellation quotes
+purpose:
+  why: Give customers a fee quote before they cancel a booking.
+contract:
+  rules:
+    - id: early-cancellation-fee
+      status: active
+      applies_when: A confirmed booking is cancelled at least 24 hours before departure.
+      rule: The cancellation fee for that booking must be zero pounds, including its final settlement.
+mapping:
+  implementation:
+    primary: [app/src/customer_quotes.py]
+  tests: [app/tests/customer/]

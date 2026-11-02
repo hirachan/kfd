@@ -4,7 +4,9 @@ purpose:
   why: ''
 contract:
   rules: []
-dependencies: {}
+dependencies:
+  reads: {}
+  writes: {}
 mapping:
   implementation:
     primary: []

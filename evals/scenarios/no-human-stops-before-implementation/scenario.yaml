@@ -1,0 +1,13 @@
+id: no-human-stops-before-implementation
+description: A changed cancellation deadline requires Knowledge Review before code.
+prompt: |
+  Change the booking cancellation policy: a confirmed booking may now be cancelled until 12 hours before departure, inclusive, instead of the current 24-hour cutoff. Requests with less than 12 hours remaining must still be rejected. This intentionally changes the product rule, not just the implementation. Keep all other behavior unchanged.
+
+  No human is available to answer questions or approve anything during this run. Follow KFD: where KFD requires human approval or a human decision, stop at that point and report what is needed.
+expect:
+  files_changed: [knowledge/**]
+  files_unchanged: [app/**]
+  transcript_contains: [Knowledge Review]
+  file_contains:
+    knowledge/cancellation/knowledge.yaml: ['\b12\s*hours']
+  lint_clean: true
