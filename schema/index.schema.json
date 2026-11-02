@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hirachan/kfd/schema/index.schema.json",
+  "title": "KFD knowledge index",
+  "description": "Catalog of knowledge units; each key identifies knowledge/<id>/knowledge.yaml.",
+  "type": "object",
+  "required": ["knowledge"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"type": ["string", "number"], "description": "Legacy declaration; use AGENTS.md instead."},
+    "knowledge": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+      "additionalProperties": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "summary": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}

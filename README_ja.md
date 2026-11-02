@@ -202,13 +202,15 @@ project-root/
   parking-lot.md
   checkpoint.yaml          # optional
   knowledge/
-    index.yaml
+    index.yaml             # Unitのカタログ
     <knowledge-id>/
-      knowledge.yaml
+      knowledge.yaml       # 製品の意味 + 依存関係 + マッピング
       decisions.yaml       # optional
   <既存のソース・テスト構成>
   userstories.md           # generated view; optional
 ```
+
+ファイル形式は `schema/` のJSON Schemaで定義されています。
 
 共通Skillには **KFDという方法論** を置きます。
 
@@ -311,6 +313,26 @@ Agent Skillsに対応したツールでこのSkillをインストールしたあ
 
 GitHubなどで他の人とプロジェクトを共有する場合は、`AGENTS.md` に短いKFD利用宣言を残し、そのプロジェクトのKnowledgeファイルと一緒にcommitします。
 
+### バージョン
+
+プロジェクトのKFDバージョンは、`AGENTS.md` に `KFD_VERSION: <version>` として宣言します。形式は `MAJOR.MINOR.PATCH` で、PATCHは省略できます。MAJORが一致し、プロジェクトのMINORがSkillのMINOR以下であれば互換性があります。PATCHは互換性に影響しません。互換性がない場合は、勝手に読み替えず、作業を止めて人間に伝えます。SkillのMINORのほうが新しい場合はSkillに従います。Agentは宣言の更新を提案できますが、無断で変更してはいけません。
+
+変更履歴は `CHANGELOG.md` にあります。
+
+## KFDプロジェクトの検証
+
+任意の補助ツールとして、このSkillリポジトリからlinterを実行できます。
+
+```sh
+uv run scripts/kfd_lint.py path/to/project
+```
+
+または、`pip install pyyaml jsonschema` で依存ライブラリをインストールしてから、`python3 scripts/kfd_lint.py path/to/project` を実行します。`--strict` を付けると、警告も失敗として扱います。
+
+ファイル構造のスキーマ適合性、indexとUnitの対応、UnitとルールのID、マッピング先のパスと所有範囲の重複、依存関係、マッピングされたテスト内の `Conforms to <unit-id>/<rule-id>` マーカー、判断記録のルール参照、`KFD_VERSION` の互換性を確認します。
+
+これは機械的な検査であり、Knowledge Reviewの代わりにはなりません。
+
 ## Skillリポジトリの構成
 
 ```text
@@ -318,6 +340,11 @@ SKILL.md            KFDのワークフローとAgent向け指示
 references/         必要なときだけ読む詳細資料
 assets/             KFDファイルを作るためのテンプレート
 examples/           書き方を確認するためのサンプル
+schema/             KFDファイルのJSON Schema
+scripts/            任意で使うプロジェクトlinter
+tests/              linterのテスト
+tools/              リポジトリの保守用チェック
+VERSION             Skillのバージョン
 README.md           English
 README_ja.md        このドキュメント
 CHANGELOG.md        バージョン履歴

@@ -1,0 +1,13 @@
+id: profiles
+name: Profiles
+purpose:
+  why: Identify the current customer.
+contract:
+  rules:
+    - id: stable-id
+      rule: Publish a stable customer identifier.
+mapping:
+  implementation:
+    primary: [src/profiles.py]
+    shared: [src/common.py]
+  tests: [checks/test_contract.py]

@@ -1,9 +1,10 @@
 decisions:
   - id: ""
-    date: YYYY-MM-DD
+    date: "YYYY-MM-DD"
     status: accepted
     context: ""
     decision: ""
     reason: ""
     rejected: []
+    # Rule refs: <rule-id> for this unit, or <unit-id>/<rule-id>.
     affects_rules: []

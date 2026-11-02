@@ -1,0 +1,6 @@
+knowledge:
+  orders:
+    name: Orders
+    summary: Publish the customer's order history.
+  profiles:
+    name: Profiles

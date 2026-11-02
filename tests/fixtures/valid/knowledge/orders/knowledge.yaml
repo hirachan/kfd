@@ -1,0 +1,25 @@
+id: orders
+name: Orders
+purpose:
+  why: Customers need their own order history.
+contract:
+  rules:
+    access:
+      - id: own-only
+        rule: Return only the customer's orders.
+    display_rules:
+      - id: newest-first
+        rule: Show newest orders first.
+examples:
+  - customer: alice
+    orders: []
+dependencies:
+  reads:
+    profiles: [customer-id]
+  writes:
+    profiles: [last-order-date]
+mapping:
+  implementation:
+    primary: [src/orders/]
+    shared: [src/common.py]
+  tests: [checks/]

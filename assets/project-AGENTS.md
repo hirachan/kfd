@@ -5,7 +5,7 @@
 This project uses Knowledge-First Development (KFD).
 Use the `kfd` skill for product changes, bug fixes, business-rule changes, UI behavior changes, persistence/security changes, tests, and implementation work.
 
-KFD_VERSION: 7.3
+KFD_VERSION: {{KFD_VERSION}}
 PROJECT_HUMAN_LANGUAGE: {{PROJECT_HUMAN_LANGUAGE}}
 
 Current product meaning is managed under `knowledge/`.

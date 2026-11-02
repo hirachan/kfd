@@ -1,6 +1,5 @@
 id: participant-order-history
 name: 参加者向け注文履歴
-version: 1
 
 purpose:
   why: |
@@ -106,8 +105,8 @@ dependencies:
 mapping:
   implementation:
     primary:
-      - implementation/participant_order_history/
+      - app/src/participant_order_history/
     shared:
-      - implementation/templates/participant_home/home.html
+      - app/src/templates/participant_home/home.html
   tests:
-    - tests/conformance/test_participant_order_history.py
+    - app/tests/participant-order-history/

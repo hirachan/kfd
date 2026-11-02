@@ -30,7 +30,7 @@ This is one form of technical debt: past implementation choices increase the cos
 
 That led to a more fundamental question:
 
-> If I ask AI to writes the code, does source code still need to be the place where humans understand the product?
+> If I ask AI to write the code, does source code still need to be the place where humans understand the product?
 
 One extreme answer would be to remove programming languages entirely and generate executable binaries directly from natural language.
 
@@ -161,13 +161,15 @@ project-root/
   parking-lot.md
   checkpoint.yaml          # optional
   knowledge/
-    index.yaml
+    index.yaml             # catalog of units
     <knowledge-id>/
-      knowledge.yaml
+      knowledge.yaml       # product meaning + dependencies + mapping
       decisions.yaml       # optional
   <existing source and test layout>
   userstories.md           # generated view; optional
 ```
+
+File formats are defined by the JSON Schemas in `schema/`.
 
 The shared Skill contains the KFD method. The repository contains that product's Knowledge.
 
@@ -249,6 +251,26 @@ On first use, the agent adds only the KFD files that are actually needed, preser
 
 To make KFD usage visible to everyone who clones the repository, commit a small KFD declaration in `AGENTS.md` together with the project's Knowledge files.
 
+### Versioning
+
+Declare the project's KFD version as `KFD_VERSION: <version>` in its `AGENTS.md`, using `MAJOR.MINOR.PATCH` (PATCH may be omitted). A Skill can serve the project when their MAJOR versions match and the project's MINOR is no newer than the Skill's; PATCH does not affect compatibility. If incompatible, stop and tell the human rather than silently reinterpreting the project. When the Skill's MINOR is newer, follow the Skill; the agent may propose updating the declaration but must not change it silently.
+
+Release history is in `CHANGELOG.md`.
+
+## Validating a KFD project
+
+The optional linter can be run from this Skill repository:
+
+```sh
+uv run scripts/kfd_lint.py path/to/project
+```
+
+Alternatively, install its dependencies with `pip install pyyaml jsonschema`, then run `python3 scripts/kfd_lint.py path/to/project`. Add `--strict` to treat warnings as failures.
+
+It checks file structure against the schemas, index↔unit consistency, unit and rule IDs, mapping paths and ownership overlap, dependencies, `Conforms to <unit-id>/<rule-id>` markers in mapped tests, decision rule references, and `KFD_VERSION` compatibility.
+
+This is a mechanical check, not a substitute for Knowledge Review.
+
 ## Skill repository structure
 
 ```text
@@ -256,6 +278,11 @@ SKILL.md            KFD workflow and agent instructions
 references/         detailed material loaded when needed
 assets/             templates used when creating KFD files
 examples/           worked examples for reference
+schema/             JSON Schemas for KFD files
+scripts/            optional project linter
+tests/              linter tests
+tools/              repository maintenance checks
+VERSION             Skill version
 README.md           this document
 README_ja.md        Japanese version
 CHANGELOG.md        version history

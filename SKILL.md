@@ -1,8 +1,8 @@
 ---
 name: kfd
-description: Apply Knowledge-First Development (KFD) 7.4.2 to new or existing software projects. Use when a project declares KFD, when the human asks to adopt or use KFD, or when making product-meaning changes, bug fixes, business-rule changes, UI behavior changes, persistence/security changes, tests, or implementation changes that must stay aligned with explicit Knowledge.
+description: Apply Knowledge-First Development (KFD) 7.5.0 to new or existing software projects. Use when a project declares KFD, when the human asks to adopt or use KFD, or when making product-meaning changes, bug fixes, business-rule changes, UI behavior changes, persistence/security changes, tests, or implementation changes that must stay aligned with explicit Knowledge.
 ---
-# Knowledge-First Development (KFD) 7.4.2
+# Knowledge-First Development (KFD) 7.5.0
 
 KFD keeps current product meaning explicit and reviewable before implementation changes.
 
@@ -22,7 +22,7 @@ Apply this skill when any of the following is true:
 - the human explicitly asks to adopt or use KFD;
 - the current task is part of a project that already uses KFD.
 
-If the repository declares `KFD_VERSION`, respect that declaration. This skill implements KFD 7.4.2. If a project declares an incompatible KFD version, do not silently reinterpret it as 7.4.2.
+This skill implements KFD 7.5.0. The authoritative project declaration is `KFD_VERSION` in `AGENTS.md`, using `MAJOR.MINOR[.PATCH]`. A project is compatible when its major matches this skill's major and its minor is no greater than this skill's minor; patch does not affect compatibility. Otherwise, stop and tell the human; do not silently reinterpret the declaration as this version. When this skill's minor is newer, follow this skill and optionally propose updating the declaration, but never change it silently.
 
 ## Adoption and human language
 
@@ -31,12 +31,12 @@ KFD must be adoptable at any time, including after substantial implementation al
 When KFD is first used in a project:
 1. Preserve the project's existing source layout, test layout, build system, documentation, and existing `AGENTS.md` instructions.
 2. If the human-facing language is not yet established, ask the human which language to use before generating substantive Knowledge or human-facing documentation.
-3. Record KFD in project `AGENTS.md`. If `AGENTS.md` already exists, merge a small KFD section into it instead of replacing unrelated instructions. Record:
+3. Record KFD in project `AGENTS.md` using the section from `assets/project-AGENTS.md` with placeholders filled (`{{KFD_VERSION}}` = this skill's version). If `AGENTS.md` already exists, merge the section into it instead of replacing unrelated instructions. Record:
    ```text
-   KFD_VERSION: 7.4.2
+   KFD_VERSION: 7.5.0
    PROJECT_HUMAN_LANGUAGE: <language>
    ```
-4. Create `knowledge/index.yaml` only if it does not exist.
+4. Create `knowledge/index.yaml` from `assets/project-index.yaml` only if it does not exist.
 5. Create `parking-lot.md` only if it does not exist.
 6. Do not create `checkpoint.yaml` until interrupted work actually needs resumable context.
 7. Do not attempt to describe the entire existing product up front. Create or refine Knowledge Units incrementally for the product area being changed now.
@@ -54,7 +54,7 @@ Keep structural vocabulary in English: YAML keys, Knowledge Unit IDs, file/direc
 
 ## Source of truth
 
-`knowledge/index.yaml` lists the Knowledge Units managed by KFD.
+`knowledge/index.yaml` is the catalog only: `knowledge: <unit-id>: {name, summary?}`. Each entry requires a name and may include a summary; its unit file is `knowledge/<unit-id>/knowledge.yaml`.
 
 Each unit normally has:
 
@@ -63,7 +63,11 @@ knowledge/<id>/knowledge.yaml
 knowledge/<id>/decisions.yaml   # optional
 ```
 
-`knowledge.yaml` is the source of truth for the current Why and What of that unit. Tests are Evidence. Implementation is How.
+`knowledge.yaml` is the source of truth for the current Why and What of that unit. Each unit records its own `dependencies` and its implementation/test ownership under `mapping`. Tests are Evidence. Implementation is How.
+
+Unit IDs and rule IDs use kebab-case (`^[a-z0-9]+(?:-[a-z0-9]+)*$`). Rule IDs are unique within a unit. `contract.rules` is a list of rules or groups of rule lists; groups organize rules but are not part of their IDs. Rule references use `<unit-id>/<rule-id>`.
+
+The normative file formats are `schema/index.schema.json`, `schema/knowledge.schema.json`, and `schema/decisions.schema.json`.
 
 `decisions.yaml` is not a change log. Use it only when an important past decision or rejected alternative would otherwise be rediscovered incorrectly. Git remains the ordinary history.
 
@@ -206,7 +210,7 @@ Required order:
 5. Show **Knowledge Review** of the verified saved changes and wait for approval.
 6. Update or add tests.
 7. Implement.
-8. Update index metadata if dependencies, ownership, or evidence changed.
+8. Update the unit's `dependencies` and `mapping` if dependencies, ownership, or evidence changed. Update the index only when units are added, removed, or renamed, or their name/summary changes.
 9. Regenerate affected human-facing views when present.
 10. Record an important decision only when it prevents future misunderstanding.
 
@@ -233,6 +237,7 @@ Before Knowledge Review, and again before completing a product-meaning change:
 5. If a genuine conflict remains, emit **Decision Required** with the conflicting sources, overlapping conditions, observable consequences, concrete alternatives, and a justified recommendation when available. Do not silently choose one rule, invent an exception, or declare consistency.
 6. Block the Knowledge Review and dependent Tests/Implementation until the required decision is approved and reflected in saved Knowledge. Unrelated work may continue when safely independent.
 7. After the decision, revise or retire affected rules, re-read saved files, verify consistency, then present the actual resulting Knowledge for Review. If a material edit follows approval, present the revised Review for approval again.
+8. When Python is available, run the bundled linter with `uv run <skill-dir>/scripts/kfd_lint.py <project-root>` or `python3 <skill-dir>/scripts/kfd_lint.py <project-root>` (with PyYAML and jsonschema installed), and fix reported errors. It checks structure, IDs, mapping, dependencies, and conformance references; it does not replace the semantic consistency checks above.
 
 A new explicit requirement can unambiguously supersede an old rule: update the obsolete rule and verify the saved result rather than treating a resolved replacement as a conflict. If two active saved rules still disagree, however, do not waive Decision Required merely because one interpretation seems preferable.
 
@@ -297,13 +302,13 @@ Use `assets/knowledge-review.md` when a fuller review artifact helps.
 
 ## Cross-Knowledge changes
 
-The index records dependencies and implementation ownership.
+Each unit's `dependencies` and `mapping` record its dependencies and implementation/test ownership.
 - Reading another Knowledge Unit's published output does not require stopping when the read does not change its meaning. Update dependency metadata when needed.
 - Changing another Knowledge Unit's owned product meaning requires a Decision Required and review of every affected Knowledge Unit.
 - One implementation file must not be independently owned by multiple Knowledge Units. Shared files must be marked `shared`.
 - Knowledge boundaries do not require matching source-code boundaries. Keep implementation structure appropriate to the framework and codebase.
 
-When a newly discovered dependency is relevant to the task, record it in the index during the same change.
+When a newly discovered dependency is relevant to the task, record it in the unit's `dependencies` during the same change.
 
 ## Persistence and security
 
@@ -313,13 +318,13 @@ Browser input is untrusted. Authorization and business rules must be enforced se
 
 ## Tests
 
-Every important rule needs conformance evidence. Prefer test names that correspond to stable rule IDs.
+Every important rule needs conformance evidence. Prefer test names that correspond to stable rule IDs. Mark evidence in a test comment or docstring with `Conforms to <unit-id>/<rule-id>`.
 
 Example:
 
 ```python
 def test_profile_birth_date_is_used_for_insurance_quote():
-    """Conforms to visitor-insurance/pricing.profile-birth-date."""
+    """Conforms to visitor-insurance/profile-birth-date."""
 ```
 
 A product-meaning change without suitable conformance coverage is incomplete.
@@ -357,6 +362,7 @@ Before finishing, verify:
 - Knowledge Review was approved when required;
 - relevant tests were updated and run;
 - dependencies and ownership are accurate;
+- the linter reports no errors when it could be run;
 - generated human views were refreshed when applicable;
 - unrelated user changes were preserved;
 - no unrequested improvement was implemented;
@@ -375,6 +381,11 @@ Use these only when needed:
 - `assets/decisions.yaml` — optional decision-history template.
 - `assets/decision-required.md` — Decision Required presentation template.
 - `assets/knowledge-review.md` — Knowledge Review presentation template.
+- `schema/index.schema.json` — normative Knowledge catalog format.
+- `schema/knowledge.schema.json` — normative Knowledge Unit format.
+- `schema/decisions.schema.json` — normative decision-history format.
+- `scripts/kfd_lint.py` — optional structural and conformance-reference checks.
+- `CHANGELOG.md` — release history.
 - `examples/participant-order-history.yaml` — worked Knowledge Unit example.
 - `examples/parking-lot.md` — worked Parking Lot example.
 - `examples/checkpoint.yaml` — worked Checkpoint example.
