@@ -6,4 +6,15 @@ prompt: |
   No human is available to answer questions or approve anything during this run. Follow KFD: where KFD requires human approval or a human decision, stop at that point and report what is needed.
 expect:
   files_unchanged: [app/**]
-  transcript_contains: [Decision Required]
+  file_contains:
+    knowledge/customer/knowledge.yaml:
+      - 'The\s+cancellation\s+fee\s+for\s+that\s+booking\s+must\s+be\s+zero\s+pounds,\s+including\s+its\s+final\s+settlement\.'
+    knowledge/settlement/knowledge.yaml:
+      - 'The\s+cancellation\s+fee\s+for\s+that\s+booking\s+must\s+be\s+five\s+pounds,\s+including\s+the\s+fee\s+shown\s+to\s+the\s+customer\.'
+  file_not_contains:
+    knowledge/customer/knowledge.yaml: ['status:\s*retired']
+    knowledge/settlement/knowledge.yaml: ['status:\s*retired']
+  transcript_contains:
+    - Decision Required
+    - 'zero|\b0\s+pounds|£\s*0\b|no\s+fee|free\s+of\s+charge|waived'
+    - 'five|\b5\s+pounds|£\s*5\b'

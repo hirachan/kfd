@@ -9,7 +9,7 @@ from expiration import expire
 
 class OperationTests(unittest.TestCase):
     def test_operation_and_promotion(self):
-        # Conforms to expiration/expire-and-promote
+        # Conforms to waitlist/expiration-promotes
         state = {"capacity": 2, "confirmed": ["alice", "bob"], "waiting": ["carol", "dan"]}
         self.assertEqual(expire(state, "bob"), "carol")
         self.assertEqual(state["confirmed"], ["alice", "carol"])

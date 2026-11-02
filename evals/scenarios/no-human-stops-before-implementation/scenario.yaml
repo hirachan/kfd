@@ -8,3 +8,6 @@ expect:
   files_changed: [knowledge/**]
   files_unchanged: [app/**]
   transcript_contains: [Knowledge Review]
+  file_contains:
+    knowledge/cancellation/knowledge.yaml: ['\b12\s*hours']
+  lint_clean: true

@@ -275,9 +275,9 @@ The optional linter can be run from this Skill repository:
 uv run scripts/kfd_lint.py path/to/project
 ```
 
-Alternatively, install its dependencies with `pip install pyyaml jsonschema`, then run `python3 scripts/kfd_lint.py path/to/project`. Add `--strict` to treat warnings as failures.
+Alternatively, install its dependencies with `pip install pyyaml jsonschema`, then run `python3 scripts/kfd_lint.py path/to/project`. Add `--strict` to treat warnings as failures. Use `--view-header` to generate the required header for registered views.
 
-It checks file structure against the schemas, index↔unit consistency, unit and rule IDs, mapping paths and ownership overlap, dependencies, `Conforms to <unit-id>/<rule-id>` markers in mapped tests, decision rule references, and `KFD_VERSION` compatibility.
+It checks file structure against the schemas, index↔unit consistency, unit and rule IDs, mapping paths and ownership overlap, dependencies, rule lifecycle references (`uses`, `superseded_by`, and retired rules), `Conforms to <unit-id>/<rule-id>` markers in mapped tests, decision rule references, registered views (header, source hashes, and citations), and `KFD_VERSION` compatibility.
 
 This is a mechanical check, not a substitute for Knowledge Review.
 
@@ -289,7 +289,7 @@ This is a mechanical check, not a substitute for Knowledge Review.
 python3 evals/run_evals.py --agent-cmd '...'
 ```
 
-See [the eval guide](evals/README.md) for command templates, scenario selection, and results.
+Scenarios can also run project commands after the agent run through the `commands_succeed` expectation; each command must exit successfully. The harness is POSIX-only and runs these commands with `sh`. See [the eval guide](evals/README.md) for command templates, scenario selection, and results.
 
 ## Skill repository structure
 

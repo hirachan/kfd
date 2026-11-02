@@ -112,6 +112,7 @@ class EvalHarnessTests(unittest.TestCase):
         self.write_scenario({"files_unchanged": ["**"]})
         code = ("from pathlib import Path; p=Path('.claude/skills/kfd'); "
                 "assert (p/'SKILL.md').is_file(); "
+                "assert (p/'CHANGELOG.md').is_file(); "
                 "assert all((p/name).is_dir() for name in ['references','assets','examples','schema','scripts']); "
                 "(p/'VERSION').write_text('changed'); (p/'new.txt').write_text('added'); "
                 "(p/'SKILL.md').unlink()")
@@ -154,6 +155,8 @@ class EvalHarnessTests(unittest.TestCase):
                 completed = self.invoke()
                 self.assertEqual(completed.returncode, 2, completed.stderr)
         for expect in ({"unknown": []}, {"files_changed": "app/**"}, {"file_contains": {"../outside": ["x"]}},
+                       {"files_changed": ["[z-a]"]}, {"commands_succeed": [" "]},
+                       {"commands_succeed": "exit 0"}, {"commands_succeed": [3]},
                        {"transcript_contains": ["["]}, {"lint_clean": "yes"}):
             with self.subTest(expect=expect):
                 self.write_scenario(expect)
@@ -170,8 +173,12 @@ class EvalHarnessTests(unittest.TestCase):
         self.assertEqual(self.invoke("print('hello')", "--install-skill-to", "../outside").returncode, 2)
 
     def test_placeholders_are_shell_quoted_and_braces_in_code_preserved(self):
+        prompt = "$HOME `echo unsafe`\n\"double\" 'single' {workdir}"
+        data = json.loads((self.scenario / "scenario.yaml").read_text(encoding="utf-8"))
+        data["prompt"] = prompt
+        (self.scenario / "scenario.yaml").write_text(json.dumps(data), encoding="utf-8")
         code = ("import sys; from pathlib import Path; "
-                "assert sys.argv[1] == \"Write a result, don't ask.\"; "
+                f"assert sys.argv[1] == bytes.fromhex({prompt.encode().hex()!r}).decode(); "
                 "assert Path(sys.argv[2]).read_text() == sys.argv[1]; "
                 "assert Path(sys.argv[3]) == Path.cwd(); "
                 "assert (Path(sys.argv[4])/'SKILL.md').is_file(); print({'safe': 'hello'})")
@@ -192,6 +199,72 @@ class EvalHarnessTests(unittest.TestCase):
         self.assertIn("PASS tiny", completed.stdout)
         self.assertIn("PASS second", completed.stdout)
         self.assertIn("2/2 passed", completed.stdout)
+
+    def test_null_expect_is_empty(self):
+        self.write_scenario(None)
+        completed = self.invoke()
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_import_bytecode_is_ignored_and_agent_environment_is_noninteractive(self):
+        (self.project / "app" / "module.py").write_text("value = 42\n", encoding="utf-8")
+        self.write_scenario({"files_unchanged": ["app/**"]})
+        code = ("import os, sys; assert os.environ['PYTHONDONTWRITEBYTECODE'] == '1'; "
+                "assert sys.stdin.read() == ''; sys.dont_write_bytecode = False; "
+                "import app.module; from pathlib import Path; "
+                "assert list(Path('app/__pycache__').glob('*.pyc')); "
+                "Path('app/stray.pyc').write_bytes(b'bytecode')")
+        completed = self.invoke(code, "--keep")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(self.result()["changed"], [])
+
+    def test_symlinks_are_snapshotted_without_following_and_fifos_are_skipped(self):
+        (self.project / "link").symlink_to("app/item.txt")
+        self.write_scenario({"files_changed": ["dangling", "link", "directory-link"],
+                             "files_unchanged": ["pipe"]})
+        code = ("import os; from pathlib import Path; Path('dangling').symlink_to('missing'); "
+                "Path('link').unlink(); Path('link').symlink_to('other-missing'); "
+                "Path('directory-link').symlink_to('app', target_is_directory=True); "
+                "os.mkfifo('pipe')")
+        completed = self.invoke(code)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(self.result()["changed"], ["dangling", "directory-link", "link"])
+
+    def test_commands_succeed_runs_after_snapshot_and_reruns_when_grading(self):
+        command = "printf checked; printf created > app/command-output.txt"
+        self.write_scenario({"files_unchanged": ["app/**"], "commands_succeed": [command]})
+        completed = self.invoke("print('hello')", "--keep")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(self.result()["changed"], [])
+        directory = self.results / "tiny"
+        self.assertIn("checked", (directory / "commands.txt").read_text(encoding="utf-8"))
+        (directory / "workdir" / "app" / "command-output.txt").unlink()
+        completed = self.cli("--grade-only", str(directory))
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertTrue((directory / "workdir" / "app" / "command-output.txt").is_file())
+
+    def test_failing_commands_fail_scenario_and_save_combined_output(self):
+        self.write_scenario({"commands_succeed": ["printf out; printf err >&2; exit 3", "printf next"]})
+        completed = self.invoke()
+        self.assertEqual(completed.returncode, 1, completed.stderr)
+        self.assertIn("commands_succeed: 'printf out; printf err >&2; exit 3' exited 3",
+                      self.result()["failures"])
+        output = (self.results / "tiny" / "commands.txt").read_text(encoding="utf-8")
+        self.assertIn("outerr", output)
+        self.assertIn("next", output)
+
+    def test_missing_project_is_isolated_as_harness_failure(self):
+        broken = self.scenarios / "broken"
+        broken.mkdir()
+        data = {"id": "broken", "description": "Missing fixture", "prompt": "Do nothing", "expect": {}}
+        (broken / "scenario.yaml").write_text(json.dumps(data), encoding="utf-8")
+        completed = self.invoke("print('hello')", "--jobs", "2")
+        self.assertEqual(completed.returncode, 1, completed.stderr)
+        self.assertIn("FAIL broken: harness error:", completed.stdout)
+        self.assertIn("PASS tiny", completed.stdout)
+        self.assertIn("1/2 passed", completed.stdout)
+        result = json.loads((self.results / "broken" / "result.json").read_text(encoding="utf-8"))
+        self.assertFalse(result["passed"])
+        self.assertTrue(result["failures"][0].startswith("harness error: "))
 
 
 if __name__ == "__main__":

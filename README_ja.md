@@ -337,9 +337,9 @@ GitHubなどで他の人とプロジェクトを共有する場合は、`AGENTS.
 uv run scripts/kfd_lint.py path/to/project
 ```
 
-または、`pip install pyyaml jsonschema` で依存ライブラリをインストールしてから、`python3 scripts/kfd_lint.py path/to/project` を実行します。`--strict` を付けると、警告も失敗として扱います。
+または、`pip install pyyaml jsonschema` で依存ライブラリをインストールしてから、`python3 scripts/kfd_lint.py path/to/project` を実行します。`--strict` を付けると、警告も失敗として扱います。`--view-header` を使うと、登録済みビューに必要なヘッダーを生成できます。
 
-ファイル構造のスキーマ適合性、indexとUnitの対応、UnitとルールのID、マッピング先のパスと所有範囲の重複、依存関係、マッピングされたテスト内の `Conforms to <unit-id>/<rule-id>` マーカー、判断記録のルール参照、`KFD_VERSION` の互換性を確認します。
+ファイル構造のスキーマ適合性、indexとUnitの対応、UnitとルールのID、マッピング先のパスと所有範囲の重複、依存関係、ルールのライフサイクル参照（`uses`、`superseded_by`、廃止済みルール）、マッピングされたテスト内の `Conforms to <unit-id>/<rule-id>` マーカー、判断記録のルール参照、登録済みビュー（ヘッダー、参照元のハッシュ、引用）、`KFD_VERSION` の互換性を確認します。
 
 これは機械的な検査であり、Knowledge Reviewの代わりにはなりません。
 
@@ -351,7 +351,7 @@ uv run scripts/kfd_lint.py path/to/project
 python3 evals/run_evals.py --agent-cmd '...'
 ```
 
-コマンドの例、シナリオの選択、結果の見方は [評価ガイド](evals/README.md)を参照してください。
+シナリオでは `commands_succeed` の期待値を使い、Agentの実行後にプロジェクトのコマンドも実行できます。各コマンドが正常終了する必要があります。評価ハーネスはPOSIX環境専用で、これらのコマンドを `sh` で実行します。コマンドの例、シナリオの選択、結果の見方は [評価ガイド](evals/README.md)を参照してください。
 
 ## Skillリポジトリの構成
 

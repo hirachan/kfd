@@ -7,5 +7,13 @@ prompt: |
 expect:
   files_changed: [app/src/**]
   files_unchanged: [knowledge/**]
-  transcript_not_contains: ['Knowledge Review:']
+  transcript_not_contains: ['Approve this product meaning']
   lint_clean: true
+  file_contains:
+    app/src/receipts.py:
+      - 'def\s+_format_total\s*\('
+      - '_format_total\s*\(\s*total_pence\s*\)'
+  file_not_contains:
+    app/src/receipts.py: ['_format_amount']
+  commands_succeed:
+    - python3 -m unittest discover -s app/tests -t .

@@ -9,7 +9,7 @@ from cancellation import cancel
 
 class OperationTests(unittest.TestCase):
     def test_operation_and_promotion(self):
-        # Conforms to cancellation/release-and-promote
+        # Conforms to waitlist/cancellation-promotes
         state = {"capacity": 2, "confirmed": ["alice", "bob"], "waiting": ["carol", "dan"]}
         self.assertEqual(cancel(state, "bob"), "carol")
         self.assertEqual(state["confirmed"], ["alice", "carol"])

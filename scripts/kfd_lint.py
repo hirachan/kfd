@@ -71,6 +71,22 @@ class Linter:
         self.skill_version = skill_version
         self.yaml = yaml
         self.validator = validator
+        class UniqueKeyLoader(yaml.SafeLoader):
+            def construct_mapping(self, node, deep=False):
+                seen = set()
+                for key_node, _ in node.value:
+                    key = self.construct_object(key_node, deep=deep)
+                    try:
+                        if key in seen:
+                            raise yaml.constructor.ConstructorError(
+                                "while constructing a mapping", node.start_mark,
+                                "duplicate key: {!r}".format(key), key_node.start_mark)
+                        seen.add(key)
+                    except TypeError:
+                        # SafeLoader reports unhashable mapping keys itself.
+                        pass
+                return super().construct_mapping(node, deep=deep)
+        self.loader = UniqueKeyLoader
         self.findings = set()
 
     def report(self, level, path, message):
@@ -85,7 +101,7 @@ class Linter:
 
     def load(self, path, schema_name):
         try:
-            data = normalize(self.yaml.safe_load(path.read_text(encoding="utf-8")))
+            data = normalize(self.yaml.load(path.read_text(encoding="utf-8"), Loader=self.loader))
         except (OSError, UnicodeError, self.yaml.YAMLError, ValueError, RecursionError) as exc:
             self.error(path, "YAML parse/read failure: " + " ".join(str(exc).splitlines()))
             return None
@@ -112,6 +128,8 @@ class Linter:
         errors = list(self.validator(self.schemas[schema_name]).iter_errors(data))
         for error in errors:
             self.error(path, "schema violation at {}: {}".format(json_path(error.absolute_path), error.message))
+            if schema_name == "index" and list(error.absolute_path)[:1] == ["views"] and error.validator in ("pattern", "minLength"):
+                self.error(path, "invalid view path: {!r} (use project-relative / paths without '..')".format(error.instance))
         return None if errors else data
 
     def check_version(self, index):
@@ -143,13 +161,12 @@ class Linter:
                 self.warn(self.root / "knowledge/index.yaml", "legacy index version differs from AGENTS.md declaration")
 
     def mapping_path(self, source, value):
-        path = PurePosixPath(value)
-        if not value or path.is_absolute() or re.match(r"^[A-Za-z]:", value) or ".." in path.parts or "\\" in value:
-            self.error(source, "invalid mapping path: {} (use project-relative / paths without '..')".format(value))
-            return None
         target = self.root / value
         if not target.exists():
             self.error(source, "mapping path does not exist: {}".format(value))
+            return None
+        if value.endswith("/") and not target.is_dir():
+            self.error(source, "mapping path ending with '/' must be a directory: {}".format(value))
             return None
         if target.is_dir() and not value.endswith("/"):
             self.error(source, "mapping directory path must end with '/': {}".format(value))
@@ -163,11 +180,14 @@ class Linter:
                 self.error(index_path, "invalid view path: {} (use project-relative / paths without '..')".format(value))
                 continue
             target = self.root / value
+            if value.endswith("/") and not target.is_dir() and target.exists():
+                self.error(index_path, "view path ending with '/' must be a directory: {}".format(value))
+                continue
             if not target.is_file():
                 self.error(index_path, "view path must be an existing file: {}".format(value))
                 continue
             try:
-                text = target.read_text(encoding="utf-8")
+                text = target.read_text(encoding="utf-8-sig")
             except (OSError, UnicodeError) as exc:
                 self.error(target, "cannot read view: {}".format(exc))
                 continue
@@ -306,6 +326,7 @@ class Linter:
             for line_number, line in enumerate(text.splitlines(), 1):
                 for marker in MARKER_RE.finditer(line):
                     for reference in re.split(r"\s*,\s*", marker.group(1)):
+                        reference = reference.rstrip(".")
                         if reference.split("/", 1)[0] in invalid_units:
                             continue
                         if reference not in refs:
@@ -314,9 +335,10 @@ class Linter:
                             evidence.add(reference)
                             if reference in retired:
                                 self.warn(path, "line {}: conformance marker references retired rule {}; update or remove the test".format(line_number, reference))
-        for reference in sorted(refs - evidence - retired):
-            unit_id = reference.split("/", 1)[0]
-            self.warn(units[unit_id][0], "no conformance evidence for {}".format(reference))
+        if not invalid_units:
+            for reference in sorted(refs - evidence - retired):
+                unit_id = reference.split("/", 1)[0]
+                self.warn(units[unit_id][0], "no conformance evidence for {}".format(reference))
         for path in sorted((self.root / "knowledge").glob("*/decisions.yaml")):
             decisions = self.load(path, "decisions")
             if decisions is None:
@@ -331,16 +353,18 @@ class Linter:
         if index is not None:
             self.check_views(index, known, invalid_units, refs, retired)
 
-    def print_findings(self):
+    def print_findings(self, file=None):
         for path, level, message in sorted(self.findings):
-            print("{} {}: {}".format(level, path, message))
+            print("{} {}: {}".format(level, path, message), file=file)
         errors = sum(level == "ERROR" for _, level, _ in self.findings)
         warnings = len(self.findings) - errors
-        print("{} error(s), {} warning(s)".format(errors, warnings))
+        print("{} error(s), {} warning(s)".format(errors, warnings), file=file)
         return errors, warnings
 
 
 def main(argv=None):
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("project_root", nargs="?", default=".")
     parser.add_argument("--strict", action="store_true", help="treat warnings as a failing result")
@@ -354,8 +378,9 @@ def main(argv=None):
         return 2
     root = Path(args.project_root).resolve()
     if not (root / "knowledge/index.yaml").is_file():
-        print("ERROR knowledge/index.yaml: required index not found")
-        print("1 error(s), 0 warning(s)")
+        stream = sys.stderr if args.view_header is not None else sys.stdout
+        print("ERROR knowledge/index.yaml: required index not found", file=stream)
+        print("1 error(s), 0 warning(s)", file=stream)
         return 2
     resources = Path(__file__).resolve().parent.parent
     try:
@@ -371,9 +396,10 @@ def main(argv=None):
     if args.view_header is not None:
         index = linter.load(root / "knowledge/index.yaml", "index")
         if index is None:
-            linter.print_findings()
+            linter.print_findings(file=sys.stderr)
             return 2
-        selected = set(index["knowledge"]) if args.view_header == "" else set(args.view_header.split(","))
+        selected = set(index["knowledge"]) if args.view_header == "" else set(
+            unit.strip() for unit in args.view_header.split(",") if unit.strip())
         unknown = selected - set(index["knowledge"])
         if unknown:
             print("Unknown view source unit(s): {}".format(", ".join(sorted(unknown))), file=sys.stderr)

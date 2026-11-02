@@ -13,15 +13,20 @@ import shlex
 import shutil
 import signal
 import subprocess
+import stat
 import sys
 import time
+import threading
 
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECT_KEYS = {
     "files_changed", "files_unchanged", "file_contains", "file_not_contains",
-    "transcript_contains", "transcript_not_contains", "lint_clean",
+    "transcript_contains", "transcript_not_contains", "lint_clean", "commands_succeed",
 }
+LIVE_PROCESSES = set()
+PROCESS_LOCK = threading.RLock()
+INTERRUPTED = threading.Event()
 
 
 class UsageError(Exception):
@@ -41,6 +46,10 @@ def string_list(value, label, regex=False, paths=False):
     for item in value:
         if paths:
             relative_path(item, label, glob=True)
+            try:
+                glob_regex(item)
+            except re.error as exc:
+                raise UsageError(f"{label}: invalid glob {item!r}: {exc}") from exc
         if regex:
             try:
                 re.compile(item)
@@ -59,6 +68,8 @@ def validate_scenario(data, scenario_id):
     if "\n" in data["description"].strip():
         raise UsageError(f"{scenario_id}: description must be one line")
     expect = data["expect"]
+    if expect is None:
+        expect = data["expect"] = {}
     if not isinstance(expect, dict):
         raise UsageError(f"{scenario_id}: expect must be a mapping")
     unknown = set(expect) - EXPECT_KEYS
@@ -70,6 +81,10 @@ def validate_scenario(data, scenario_id):
             string_list(value, label, paths=True)
         elif key in ("transcript_contains", "transcript_not_contains"):
             string_list(value, label, regex=True)
+        elif key == "commands_succeed":
+            string_list(value, label)
+            if any(not item.strip() for item in value):
+                raise UsageError(f"{label}: expected non-empty commands")
         elif key in ("file_contains", "file_not_contains"):
             if not isinstance(value, dict):
                 raise UsageError(f"{label}: expected a path-to-regex-list mapping")
@@ -90,8 +105,6 @@ def load_scenario(directory):
         data = yaml.safe_load((directory / "scenario.yaml").read_text(encoding="utf-8"))
     except (OSError, UnicodeError, yaml.YAMLError) as exc:
         raise UsageError(f"{directory}: cannot read scenario.yaml: {exc}") from exc
-    if not (directory / "project").is_dir():
-        raise UsageError(f"{directory}: missing project/ fixture")
     return validate_scenario(data, directory.name)
 
 
@@ -140,14 +153,21 @@ def snapshot(workdir, install_dir):
     hashes = {}
     for directory, dirs, files in os.walk(workdir):
         parent = Path(directory)
-        dirs[:] = sorted(name for name in dirs if name != ".git" and (
+        dirs[:] = sorted(name for name in dirs if name not in (".git", "__pycache__") and (
             not install_dir or (parent / name).relative_to(workdir).as_posix() != install_dir))
-        for name in sorted(files):
+        for name in sorted(dirs + files):
             path = parent / name
             relative = path.relative_to(workdir).as_posix()
-            if relative == install_dir or name == ".git":
+            if relative == install_dir or name == ".git" or name.endswith(".pyc"):
                 continue
-            hashes[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+            mode = os.lstat(path).st_mode
+            if stat.S_ISLNK(mode):
+                content = b"symlink:" + os.fsencode(os.readlink(path))
+            elif stat.S_ISREG(mode):
+                content = path.read_bytes()
+            else:
+                continue
+            hashes[relative] = hashlib.sha256(content).hexdigest()
     return hashes
 
 
@@ -157,23 +177,40 @@ def save_json(path, data):
 
 def run_command(command, workdir, timeout):
     started = time.monotonic()
-    process = subprocess.Popen(command, shell=True, cwd=workdir, stdout=subprocess.PIPE,
-                               stderr=subprocess.STDOUT, start_new_session=(os.name == "posix"))
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+    with PROCESS_LOCK:
+        if INTERRUPTED.is_set():
+            raise RuntimeError("run interrupted")
+        process = subprocess.Popen(["sh", "-c", command], cwd=workdir, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                   env=env, start_new_session=True)
+        LIVE_PROCESSES.add(process)
     timed_out = False
     try:
-        output, _ = process.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        if os.name == "posix":
-            os.killpg(process.pid, signal.SIGKILL)
-        else:
-            process.kill()
-        output, _ = process.communicate()
+        try:
+            output, _ = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            kill_process_group(process)
+            output, _ = process.communicate()
+    except KeyboardInterrupt:
+        kill_process_group(process)
+        raise
+    finally:
+        with PROCESS_LOCK:
+            LIVE_PROCESSES.discard(process)
     return {
         "exit_code": process.returncode,
         "duration_s": round(time.monotonic() - started, 3),
         "timed_out": timed_out,
     }, output.decode("utf-8", errors="replace")
+
+
+def kill_process_group(process):
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
 
 
 def grade(directory, scenario, baseline, execution, install_dir):
@@ -211,6 +248,16 @@ def grade(directory, scenario, baseline, execution, install_dir):
                 matched = re.search(pattern, transcript, re.IGNORECASE) is not None
                 if matched != (key == "transcript_contains"):
                     failures.append(f"{key}: {pattern!r}")
+        elif key == "commands_succeed":
+            outputs = []
+            for command in value:
+                outcome, output = run_command(command, workdir, 300)
+                outputs.append(f"$ {command}\n{output}\n")
+                if outcome["timed_out"]:
+                    failures.append(f"commands_succeed: '{command}' timed out")
+                elif outcome["exit_code"] != 0:
+                    failures.append(f"commands_succeed: '{command}' exited {outcome['exit_code']}")
+            (directory / "commands.txt").write_text("".join(outputs), encoding="utf-8")
         elif value:
             lint = subprocess.run([sys.executable, str(ROOT / "scripts" / "kfd_lint.py"), str(workdir)],
                                   capture_output=True, text=True)
@@ -243,7 +290,7 @@ def run_scenario(source, scenario, args):
     directory = args.results / scenario["id"]
     directory.mkdir(parents=True, exist_ok=False)
     workdir = directory / "workdir"
-    shutil.copytree(source / "project", workdir)
+    shutil.copytree(source / "project", workdir, symlinks=True)
     agents = workdir / "AGENTS.md"
     if agents.is_file():
         agents.write_text(agents.read_text(encoding="utf-8").replace(
@@ -251,7 +298,7 @@ def run_scenario(source, scenario, args):
     if args.install_skill_to:
         target = workdir / args.install_skill_to
         target.mkdir(parents=True, exist_ok=True)
-        for name in ("SKILL.md", "VERSION", "references", "assets", "examples", "schema", "scripts"):
+        for name in ("SKILL.md", "VERSION", "CHANGELOG.md", "references", "assets", "examples", "schema", "scripts"):
             source_path = ROOT / name
             if source_path.is_dir():
                 shutil.copytree(source_path, target / name, dirs_exist_ok=True)
@@ -275,6 +322,22 @@ def run_scenario(source, scenario, args):
     if result["passed"] and not args.keep:
         shutil.rmtree(workdir)
     return result
+
+
+def isolated_run(source, scenario, args):
+    try:
+        return run_scenario(source, scenario, args)
+    except Exception as exc:
+        result = {"id": scenario["id"], "passed": False,
+                  "failures": [f"harness error: {exc}"], "changed": [],
+                  "exit_code": None, "duration_s": 0}
+        try:
+            directory = args.results / scenario["id"]
+            directory.mkdir(parents=True, exist_ok=True)
+            save_json(directory / "result.json", result)
+        except OSError:
+            pass
+        return result
 
 
 def grade_only(directory):
@@ -305,6 +368,10 @@ def positive_timeout(value):
 
 
 def main(argv=None):
+    if os.name != "posix":
+        print("error: the eval harness requires POSIX (sh and process groups)", file=sys.stderr)
+        return 2
+    INTERRUPTED.clear()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--agent-cmd", help="shell command template; see evals/README.md")
     parser.add_argument("--scenario", nargs="+", action="append", default=[])
@@ -318,6 +385,7 @@ def main(argv=None):
     mode.add_argument("--grade-only", type=Path)
     mode.add_argument("--list", action="store_true")
     args = parser.parse_args(argv)
+    executor = None
     try:
         if args.grade_only:
             results = [grade_only(args.grade_only.resolve())]
@@ -347,13 +415,23 @@ def main(argv=None):
             for _, scenario in scenarios:
                 if (args.results / scenario["id"]).exists():
                     raise UsageError(f"Result directory already exists: {args.results / scenario['id']}")
-            with ThreadPoolExecutor(max_workers=args.jobs) as executor:
-                results = list(executor.map(lambda item: run_scenario(item[0], item[1], args), scenarios))
+            executor = ThreadPoolExecutor(max_workers=args.jobs)
+            results = list(executor.map(lambda item: isolated_run(item[0], item[1], args), scenarios))
+            executor.shutdown()
+            executor = None
         for result in results:
             print(f"PASS {result['id']}" if result["passed"] else f"FAIL {result['id']}: {'; '.join(result['failures'])}")
         passed = sum(result["passed"] for result in results)
         print(f"{passed}/{len(results)} passed; {len(results) - passed} failed")
         return 0 if passed == len(results) else 1
+    except KeyboardInterrupt:
+        INTERRUPTED.set()
+        with PROCESS_LOCK:
+            for process in LIVE_PROCESSES:
+                kill_process_group(process)
+        if executor is not None:
+            executor.shutdown(wait=False, cancel_futures=True)
+        return 130
     except (UsageError, OSError, UnicodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

@@ -9,7 +9,7 @@ from registration import register
 
 class OperationTests(unittest.TestCase):
     def test_operation_and_promotion(self):
-        # Conforms to registration/queue-and-promote
+        # Conforms to waitlist/registration-promotes
         state = {"capacity": 2, "confirmed": ["alice"], "waiting": []}
         self.assertEqual(register(state, "bob"), "bob")
         self.assertEqual(state["confirmed"], ["alice", "bob"])

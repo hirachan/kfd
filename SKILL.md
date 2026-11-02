@@ -107,7 +107,7 @@ Required order:
 
 ### Knowledge-preserving bug fix
 
-When observed behavior clearly violates written Knowledge, apply the Consistency gate, add/update a regression test, fix implementation, and verify affected and full tests. Do not require Knowledge Review and do not rewrite Knowledge unless it was insufficient to identify the bug.
+When observed behavior clearly violates written Knowledge, apply the Consistency gate, add/update a regression test, fix implementation, and verify affected and full tests. No Knowledge Review is needed only while Knowledge remains unchanged. If the fix needs any Knowledge edit, treat it as a Knowledge change requiring Knowledge Review and human approval before tests/implementation; with no human available, stop at Review.
 
 ### Meaning-preserving change
 
@@ -157,7 +157,7 @@ For changed existing rules, briefly identify related rules revised, preserved (w
 
 Only a human in the conversation may approve. Silence, timeouts, and absence of a human are never approval. When committing is requested or expected by repository workflow (KFD never requires it), commit approved Knowledge separately from tests/implementation with `KFD-Review: approved` and, when the approver is known, `Reviewed-by: <name>` trailers. This also covers approved Decision Required resolutions reflected in Knowledge. If not committing, state which Knowledge changes were approved in the final report.
 
-With no human available (non-interactive/autonomous/CI/background runs), still update and verify Knowledge, then STOP before tests/implementation and hand it over for review: if allowed to create PRs, open a draft PR containing only the Knowledge change with the Knowledge Review text in its description; otherwise leave it uncommitted/on its branch and report the Review text. Knowledge-preserving bug fixes and meaning-preserving changes may complete without a human.
+With no human available (non-interactive/autonomous/CI/background runs), still update and verify Knowledge, then STOP before tests/implementation and hand it over for review: if allowed to create PRs, open a draft PR containing only the Knowledge change with the Knowledge Review text in its description; otherwise leave it uncommitted/on its branch and report the Review text. Knowledge-preserving bug fixes that leave Knowledge unchanged and meaning-preserving changes may complete without a human.
 
 ## Cross-Knowledge changes
 
@@ -179,7 +179,7 @@ Every important rule needs conformance evidence; prefer test names corresponding
 
 ## Generated human views
 
-Regenerate existing affected views, including `userstories.md`, after product-meaning changes and whenever the linter reports staleness. Register generated paths in `knowledge/index.yaml` under `views`; generate the required header with `python3 <skill-dir>/scripts/kfd_lint.py <root> --view-header` (or `--view-header=a,b` for selected units). Cite supporting rules after guarantee/rule sentences as `{unit-id/rule-id}` or `{a/x, b/y}`. Preserve Knowledge meaning; never invent guarantees or edit views as a second source of truth. Read `references/knowledge-model.md` for header, citations, and generation procedures.
+Regenerate existing affected views, including `userstories.md`, after product-meaning changes and whenever the linter reports staleness. Register generated paths in `knowledge/index.yaml` under `views`; generate the required header with `uv run <skill-dir>/scripts/kfd_lint.py <root> --view-header` or `python3 <skill-dir>/scripts/kfd_lint.py <root> --view-header` (or `--view-header=a,b` for selected units). The header must be the first content of the file. Cite supporting rules after guarantee/rule sentences as `{unit-id/rule-id}` or `{a/x, b/y}`. Preserve Knowledge meaning; never invent guarantees or edit views as a second source of truth. Read `references/knowledge-model.md` for header, citations, and generation procedures.
 
 ## Knowledge Unit boundaries
 

@@ -3,7 +3,9 @@
 import datetime
 import hashlib
 import json
+import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -119,6 +121,12 @@ class LinterTests(unittest.TestCase):
                 self.save_unit(unit)
                 self.assertIn("schema violation", self.lint(1))
 
+    def test_mapping_file_cannot_have_trailing_slash(self):
+        unit = self.unit()
+        unit["mapping"]["implementation"]["primary"] = ["src/orders/history.py/"]
+        self.save_unit(unit)
+        self.assertIn("mapping path ending with '/' must be a directory", self.lint(1))
+
     def test_directory_mapping_requires_trailing_slash(self):
         unit = self.unit()
         unit["mapping"]["implementation"]["primary"] = ["src/orders"]
@@ -129,6 +137,15 @@ class LinterTests(unittest.TestCase):
         unit = self.unit("profiles")
         unit["mapping"]["implementation"]["primary"] = ["src/orders/history.py"]
         self.save_unit(unit, "profiles")
+        self.assertIn("primary ownership overlap", self.lint(1))
+
+    def test_later_primary_directory_contains_earlier_units_file(self):
+        orders = self.unit()
+        orders["mapping"]["implementation"]["primary"] = ["src/orders/history.py"]
+        self.save_unit(orders)
+        profiles = self.unit("profiles")
+        profiles["mapping"]["implementation"]["primary"] = ["src/orders/"]
+        self.save_unit(profiles, "profiles")
         self.assertIn("primary ownership overlap", self.lint(1))
 
     def test_same_primary_file_in_two_units(self):
@@ -165,6 +182,14 @@ class LinterTests(unittest.TestCase):
                 path = self.root / "checks/test_contract.py"
                 path.write_text((FIXTURE / "checks/test_contract.py").read_text() + "\n# Conforms to " + reference + "\n")
                 self.assertIn("unknown conformance ref " + reference, self.lint(1))
+
+    def test_docstring_markers_allow_sentence_punctuation_and_lists(self):
+        path = self.root / "checks/test_contract.py"
+        path.write_text(
+            '"""Conforms to orders/own-only."""\n'
+            '"""Conforms to orders/newest-first., profiles/stable-id."""\n',
+            encoding="utf-8")
+        self.assertEqual(self.lint(), "0 error(s), 0 warning(s)\n")
 
     def test_missing_evidence_warns_and_strict_fails(self):
         unit = self.unit()
@@ -212,9 +237,44 @@ class LinterTests(unittest.TestCase):
         self.assertNotIn("unknown conformance ref", output)
         self.assertNotIn("unresolved rule ref", output)
 
+    def test_failed_unit_load_suppresses_incomplete_evidence_warnings(self):
+        # Profiles owns the only mapping to the checks, including Orders' evidence.
+        orders = self.unit()
+        orders["mapping"].pop("tests")
+        self.save_unit(orders)
+        profiles = self.unit("profiles")
+        profiles["mapping"]["tests"] = ["checks/"]
+        self.save_unit(profiles, "profiles")
+        path = self.root / "knowledge/profiles/knowledge.yaml"
+        path.write_text("id: [unterminated\n", encoding="utf-8")
+        output = self.lint(1)
+        self.assertIn("YAML parse/read failure", output)
+        self.assertNotIn("no conformance evidence", output)
+
+    def test_stdout_escapes_unencodable_diagnostics(self):
+        (self.root / "AGENTS.md").write_text("KFD_VERSION: é\n", encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), str(self.root)], capture_output=True, text=True,
+            env={**os.environ, "PYTHONIOENCODING": "ascii:strict"})
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertIn(r"invalid KFD_VERSION: \xe9", result.stdout)
+
     def test_yaml_parse_failure(self):
         (self.root / "knowledge/orders/knowledge.yaml").write_text("id: [unterminated\n")
         self.assertIn("YAML parse/read failure", self.lint(1))
+
+    def test_duplicate_yaml_keys_are_parse_failures(self):
+        for relative in ("knowledge/index.yaml", "knowledge/orders/knowledge.yaml",
+                         "knowledge/orders/decisions.yaml"):
+            with self.subTest(relative=relative):
+                path = self.root / relative
+                original = path.read_text(encoding="utf-8")
+                path.write_text(original + "\nduplicate: first\nduplicate: second\n", encoding="utf-8")
+                output = self.lint(1)
+                self.assertIn("YAML parse/read failure", output)
+                self.assertIn("duplicate key: 'duplicate'", output)
+                path.write_text(original, encoding="utf-8")
 
     def test_incompatible_and_invalid_versions(self):
         versions = [
@@ -304,6 +364,12 @@ class LinterTests(unittest.TestCase):
                 self.save_unit(unit)
                 self.assertIn("schema violation", self.lint(1))
 
+    def test_grouped_rule_violation_reports_nested_json_path(self):
+        unit = self.unit()
+        unit["contract"]["rules"] = {"g": [{"id": "own-only", "rule": "Own orders.", "uses": "bad"}]}
+        self.save_unit(unit)
+        self.assertIn('schema violation at $["contract"]["rules"]["g"][0]["uses"]:', self.lint(1))
+
     def test_unresolved_lifecycle_references(self):
         for field in ("uses", "superseded_by"):
             for reference in ("missing", "profiles/missing", "absent/missing"):
@@ -368,23 +434,44 @@ class LinterTests(unittest.TestCase):
         unit = self.unit()
         unit["contract"]["rules"]["access"][1]["superseded_by"] = ["profiles/missing"]
         self.save_unit(unit)
-        profiles = self.unit("profiles")
-        profiles["unexpected"] = True
-        self.save_unit(profiles, "profiles")
         path = self.root / "order-history.txt"
         path.write_text(path.read_text() + "\nUnknown while invalid. {profiles/missing}\n")
+        profiles = self.unit("profiles")
+        profiles["unexpected"] = True
+        self.write_yaml("knowledge/profiles/knowledge.yaml", profiles)
         output = self.lint(1)
         self.assertIn("schema violation", output)
         for message in ("unresolved rule ref", "unknown citation", "unknown source", "stale source"):
             self.assertNotIn(message, output)
 
     def test_view_path_validation(self):
-        for value in ("", "/tmp/view", "../view", "src/../view", "C:/view", "src\\view", "missing.txt", "src/", "src"):
+        outside = Path(self.temp.name) / "outside-view.txt"
+        outside.write_text(self.header().stdout, encoding="utf-8")
+        for value in ("", "/tmp/view", "../outside-view.txt", "src/../view", "C:/view", "src\\view"):
             with self.subTest(value=value):
                 index = self.read_yaml("knowledge/index.yaml")
                 index["views"] = [value]
                 self.write_yaml("knowledge/index.yaml", index)
-                self.assertIn("view path", self.lint(1))
+                self.assertIn("invalid view path", self.lint(1))
+
+    def test_view_must_be_an_existing_file(self):
+        for value in ("missing.txt", "src/", "src"):
+            with self.subTest(value=value):
+                index = self.read_yaml("knowledge/index.yaml")
+                index["views"] = [value]
+                self.write_yaml("knowledge/index.yaml", index)
+                self.assertIn("view path must be an existing file", self.lint(1))
+
+    def test_view_file_cannot_have_trailing_slash(self):
+        index = self.read_yaml("knowledge/index.yaml")
+        index["views"] = ["order-history.txt/"]
+        self.write_yaml("knowledge/index.yaml", index)
+        self.assertIn("view path ending with '/' must be a directory", self.lint(1))
+
+    def test_view_tolerates_utf8_bom(self):
+        path = self.root / "order-history.txt"
+        path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
+        self.assertEqual(self.lint(), "0 error(s), 0 warning(s)\n")
 
     def test_views_must_be_array_of_strings(self):
         for value in ("order-history.txt", [42]):
@@ -448,6 +535,8 @@ class LinterTests(unittest.TestCase):
                     "kfd-sources:\n  orders: {orders}\n  profiles: {profiles}\n-->\n").format(**hashes)
         self.assertEqual(self.header().stdout, expected)
         self.assertEqual(self.header("profiles,orders").stdout, expected)
+        self.assertEqual(self.header("orders, profiles").stdout, expected)
+        self.assertEqual(self.header(" orders, , profiles, ").stdout, expected)
         self.assertEqual(self.header("orders").stdout, expected.replace("  profiles: " + hashes["profiles"] + "\n", ""))
         self.assertEqual(self.header().stderr, "")
 
@@ -464,7 +553,17 @@ class LinterTests(unittest.TestCase):
         self.assertIn("Unknown view source unit(s): unknown", result.stderr)
         self.assertEqual(result.stdout, "")
         (self.root / "knowledge/index.yaml").unlink()
-        self.assertIn("required index not found", self.header(expected=2).stdout)
+        result = self.header(expected=2)
+        self.assertIn("required index not found", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_view_header_invalid_index_diagnostics_go_to_stderr(self):
+        for text in ("knowledge: [\n", "knowledge: []\n", "knowledge: {}\nknowledge: {}\n"):
+            with self.subTest(text=text):
+                (self.root / "knowledge/index.yaml").write_text(text, encoding="utf-8")
+                result = self.header(expected=2)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("ERROR knowledge/index.yaml:", result.stderr)
 
     def test_projects_without_registered_views_are_unaffected(self):
         index = self.read_yaml("knowledge/index.yaml")
@@ -481,6 +580,17 @@ class SchemaTests(unittest.TestCase):
                 schema = json.loads((REPO / "schema" / (name + ".schema.json")).read_text())
                 Draft202012Validator.check_schema(schema)
 
+    def test_mapping_and_view_schemas_reject_unsafe_paths(self):
+        knowledge = json.loads((REPO / "schema/knowledge.schema.json").read_text())
+        index = json.loads((REPO / "schema/index.schema.json").read_text())
+        mapping_path = knowledge["$defs"]["paths"]["items"]
+        view_path = index["properties"]["views"]["items"]
+        self.assertEqual(view_path, mapping_path)
+        for value in ("", "/absolute", "..", "../outside", "src/../outside",
+                      "src/..", "C:/absolute", "C:relative", "src\\file"):
+            with self.subTest(value=value):
+                self.assertFalse(Draft202012Validator(mapping_path).is_valid(value))
+
     def test_participant_order_history_example(self):
         schema = json.loads((REPO / "schema/knowledge.schema.json").read_text())
         example = yaml.safe_load((REPO / "examples/participant-order-history.yaml").read_text())
@@ -495,6 +605,25 @@ class SchemaTests(unittest.TestCase):
             return value
 
         Draft202012Validator(schema).validate(normalize_dates(example))
+
+    def test_example_view_hash_and_citations_resolve(self):
+        raw = (REPO / "examples/participant-order-history.yaml").read_bytes()
+        expected_hash = hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest()[:12]
+        view = (REPO / "examples/userstories.md").read_text(encoding="utf-8-sig")
+        header = re.match(
+            r"\A\s*<!--\nGENERATED FROM KFD KNOWLEDGE\. DO NOT EDIT DIRECTLY\.\n"
+            r"kfd-sources:\n  participant-order-history: ([0-9a-f]{12})\n-->\n", view)
+        self.assertIsNotNone(header)
+        self.assertEqual(header.group(1), expected_hash)
+        unit = yaml.safe_load(raw)
+        groups = unit["contract"]["rules"]
+        rules = groups if isinstance(groups, list) else [rule for group in groups.values() for rule in group]
+        refs = {unit["id"] + "/" + rule["id"] for rule in rules}
+        citations = re.findall(r"\{([^{}]+)\}", view)
+        self.assertTrue(citations)
+        for citation in citations:
+            for reference in citation.split(","):
+                self.assertIn(reference.strip(), refs)
 
 
 if __name__ == "__main__":

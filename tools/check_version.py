@@ -7,8 +7,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VERSION_PATTERNS = (
-    re.compile(r"\(KFD\)\s+v?(\d+\.\d+(?:\.\d+)?)"),
-    re.compile(r"\bKFD\s+v?(\d+\.\d+(?:\.\d+)?)"),
+    re.compile(r"\(KFD\)\s+v?(\d+(?:\.\d+){0,2})"),
+    re.compile(r"\bKFD\s+v?(\d+(?:\.\d+){0,2})"),
     re.compile(r"KFD_VERSION:\s*(\d+\.\d+(?:\.\d+)?)"),
 )
 YAML_VERSION_PATTERN = re.compile(
@@ -28,8 +28,19 @@ def main():
         problems.append("VERSION: expected a MAJOR.MINOR.PATCH version")
 
     paths = [ROOT / name for name in ("SKILL.md", "README.md", "README_ja.md")]
-    for directory in ("references", "assets", "examples"):
-        paths.extend(path for path in sorted((ROOT / directory).rglob("*")) if path.is_file())
+    for directory in ("references", "assets", "examples", "evals", "schema", "scripts", "tools"):
+        for path in sorted((ROOT / directory).rglob("*")):
+            relative_parts = path.relative_to(ROOT).parts
+            if (
+                len(relative_parts) >= 4
+                and relative_parts[:2] == ("evals", "scenarios")
+                and relative_parts[3] == "project"
+            ):
+                continue
+            if "__pycache__" in relative_parts or path.suffix == ".pyc":
+                continue
+            if path.is_file():
+                paths.append(path)
 
     texts = {}
     for path in paths:
@@ -51,7 +62,8 @@ def main():
             for match in pattern.finditer(text):
                 found = match.group(1)
                 line = text.count("\n", 0, match.start(1)) + 1
-                if found != version and (line, found) not in reported:
+                expected = ".".join(version.split(".")[: len(found.split("."))])
+                if found != expected and (line, found) not in reported:
                     problems.append(f"{relative}:{line}: found {found}, expected {version}")
                     reported.add((line, found))
 
@@ -73,6 +85,8 @@ def main():
         problems.append(f"SKILL.md: H1 must declare KFD {version}")
     if not re.search(r"^\s*KFD_VERSION:\s*" + re.escape(version) + r"\s*$", skill, re.MULTILINE):
         problems.append(f"SKILL.md: missing KFD_VERSION: {version}")
+    if f"This skill implements KFD {version}." not in skill:
+        problems.append(f"SKILL.md: missing exact sentence: This skill implements KFD {version}.")
 
     if "KFD_VERSION: {{KFD_VERSION}}" not in texts.get("assets/project-AGENTS.md", ""):
         problems.append("assets/project-AGENTS.md: missing KFD_VERSION: {{KFD_VERSION}}")

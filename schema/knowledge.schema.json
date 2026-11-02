@@ -20,14 +20,13 @@
       "required": ["rules"],
       "properties": {
         "rules": {
-          "oneOf": [
-            {"type": "array", "items": {"$ref": "#/$defs/rule"}},
-            {
-              "type": "object",
-              "propertyNames": {"pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$"},
-              "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/rule"}}
-            }
-          ]
+          "if": {"type": "array"},
+          "then": {"type": "array", "items": {"$ref": "#/$defs/rule"}},
+          "else": {
+            "type": "object",
+            "propertyNames": {"pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$"},
+            "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/rule"}}
+          }
         }
       },
       "additionalProperties": true

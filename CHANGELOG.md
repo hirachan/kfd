@@ -15,13 +15,16 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Guidance for `CLAUDE.md`, Cursor, Gemini, and Copilot instruction files.
 - `checkpoint.yaml` is gitignored by default.
 - Behavior scenarios in `evals/` and the `evals/run_evals.py` harness.
+- Eval harness `commands_succeed` expectations for running project commands after an agent run.
 
 ### Changed
 
 - Consolidated repeated consistency rules in `SKILL.md` into one Consistency gate; moved detailed procedures to `references/consistency.md`.
 - Shortened the Tests and Generated views sections in favor of `references/knowledge-model.md`.
 - Updated examples with a single-language Parking Lot, a traceable userstories view, and rule lifecycle fields.
-- Existing 7.5 projects need no changes; all new fields are optional.
+- The linter accepts a sentence-final `.` after conformance references.
+- Rule-level schema errors report precise paths.
+- Existing 7.5 projects need no changes unless rules already used the keys `applies_when`, `uses`, `status`, or `superseded_by` with other meanings; all new fields are optional.
 
 ## [7.5.0] - 2026-11-02
 
