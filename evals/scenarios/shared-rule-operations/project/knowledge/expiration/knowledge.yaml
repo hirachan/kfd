@@ -1,0 +1,18 @@
+id: expiration
+name: Reservation expiration
+purpose:
+  why: Release a held place when its reservation expires.
+contract:
+  rules:
+    - id: expire-and-promote
+      rule: Remove the attendee with an expired reservation from confirmed, then invoke shared promotion under waitlist/promotion-condition.
+      uses: [waitlist/promotion-condition]
+dependencies:
+  reads:
+    waitlist: [promotion-condition]
+  writes:
+    waitlist: [confirmed-attendees, waiting-attendees]
+mapping:
+  implementation:
+    primary: [app/src/expiration.py]
+  tests: [app/tests/expiration/]

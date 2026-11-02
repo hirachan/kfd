@@ -1,0 +1,8 @@
+<!--
+GENERATED FROM KFD KNOWLEDGE. DO NOT EDIT DIRECTLY.
+kfd-sources:
+  orders: 1a4c9fa210d9
+  profiles: d822893eda6b
+-->
+
+Customers see their own orders. {orders/own-only, profiles/stable-id}

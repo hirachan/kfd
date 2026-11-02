@@ -1,0 +1,12 @@
+id: cancellation
+name: Booking cancellation
+purpose:
+  why: Allow timely cancellation while protecting departures from last-minute changes.
+contract:
+  rules:
+    - id: cancellation-cutoff
+      rule: A confirmed booking may be cancelled if and only if departure is at least 24 hours away; exactly 24 hours is allowed. A rejected cancellation leaves the booking confirmed.
+mapping:
+  implementation:
+    primary: [app/src/cancellation.py]
+  tests: [app/tests/cancellation/]

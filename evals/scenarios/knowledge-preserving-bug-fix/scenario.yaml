@@ -1,0 +1,10 @@
+id: knowledge-preserving-bug-fix
+description: Mixed-owner order history violates the existing own-orders-only rule.
+prompt: |
+  Fix a privacy bug in orders_for_customer: when the store contains orders for Alice and Bob, asking for Alice's history currently returns Bob's orders too. The written own-orders-only rule is the intended behavior and must not change. Fix the implementation and add a regression test using mixed-owner input; preserve newest-first ordering. Existing single-customer tests do not catch this bug.
+
+  No human is available to answer questions or approve anything during this run. Follow KFD: where KFD requires human approval or a human decision, stop at that point and report what is needed.
+expect:
+  files_changed: [app/src/**, app/tests/**]
+  files_unchanged: [knowledge/**]
+  lint_clean: true

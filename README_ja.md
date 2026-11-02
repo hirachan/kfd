@@ -68,6 +68,8 @@ KFDでは、独立して変更できる製品上の意味のまとまりを **Kn
 
 という役割分担をします。
 
+ルールには、適用条件、共有ルールへの参照、廃止状態、後継ルールを表す任意のフィールド `applies_when`、`uses`、`status`、`superseded_by` を追加できます。詳しくは [Knowledgeモデル](references/knowledge-model.md)を参照してください。
+
 実装コードが重要でなくなるわけではありません。
 ただし、コードに「実際に動くこと」と「製品の意味を人間に説明すること」の両方を背負わせるのをやめます。
 
@@ -147,6 +149,10 @@ KFDでは、実装上の判断と製品上の判断を分けます。
 
 その境界を明確にします。
 
+承認とみなすのは、会話の中で人間が明示した承認だけです。沈黙やタイムアウトは承認ではありません。人間からcommitを依頼された場合や、リポジトリの運用でAgentによるcommitが求められる場合は、承認済みのKnowledgeをテスト・実装とは別にcommitし、`KFD-Review: approved` トレーラーを付けます。承認者が分かる場合は `Reviewed-by: <name>` も付けます。commitしない場合は、どのKnowledge変更が承認されたかを最終報告に記載します。KFD自体はcommitを必須にしません。
+
+人間が対応できない実行では、変更したKnowledgeを更新・検証したところで止まり、テスト・実装には進まずレビューに引き渡します。たとえば、許可されていればKnowledge変更だけのdraft PRを作り、説明にKnowledge Reviewを記載します。そうでなければ変更を未commitのまま、または作業ブランチに残し、Knowledge Reviewを報告します。**Decision Required** でも停止し、人間の不在を承認とはみなしません。Knowledgeを変えないバグ修正や製品の意味を変えない変更は、人間の承認なしでも進められます。
+
 ## 既存プロジェクトにも後から入れられる
 
 KFDは新規プロジェクト専用ではありません。
@@ -200,9 +206,9 @@ Knowledgeに置くのは、安定した製品上の意味です。
 project-root/
   AGENTS.md
   parking-lot.md
-  checkpoint.yaml          # optional
+  checkpoint.yaml          # 任意。gitignore対象のローカル作業メモリ
   knowledge/
-    index.yaml             # Unitのカタログ
+    index.yaml             # Unitと生成ビューのカタログ
     <knowledge-id>/
       knowledge.yaml       # 製品の意味 + 依存関係 + マッピング
       decisions.yaml       # optional
@@ -268,6 +274,8 @@ Agentは関係するKnowledge Unitを読み、プロジェクトで設定され�
 
 というルールに従います。
 
+生成ビューのプロジェクト相対パスを `knowledge/index.yaml` の `views` に登録します。ファイルの先頭には生成文書であることを示すヘッダーと、参照元Unitのハッシュを記載した `kfd-sources` を置きます。保証やルールを述べる各文の後には、根拠となるルールを `{unit-id/rule-id}` の形式で引用します。linterは参照元のハッシュが古いビューを報告し、再生成を促します。ヘッダーの形式は [Knowledgeモデル](references/knowledge-model.md)を参照してください。
+
 重要なのは、`userstories.md` は **もうひとつのSource of Truthではない** ということです。
 
 ```text
@@ -313,6 +321,8 @@ Agent Skillsに対応したツールでこのSkillをインストールしたあ
 
 GitHubなどで他の人とプロジェクトを共有する場合は、`AGENTS.md` に短いKFD利用宣言を残し、そのプロジェクトのKnowledgeファイルと一緒にcommitします。
 
+ツール固有の指示ファイルが既にある場合は、KFD宣言を重複させず `AGENTS.md` を参照させます。`CLAUDE.md` には `@AGENTS.md` のimport行を、Cursorの `.cursor/rules/`、`GEMINI.md`、`.github/copilot-instructions.md` には短い参照案内を追加します。使う予定のないファイルを先回りして作る必要はありません。
+
 ### バージョン
 
 プロジェクトのKFDバージョンは、`AGENTS.md` に `KFD_VERSION: <version>` として宣言します。形式は `MAJOR.MINOR.PATCH` で、PATCHは省略できます。MAJORが一致し、プロジェクトのMINORがSkillのMINOR以下であれば互換性があります。PATCHは互換性に影響しません。互換性がない場合は、勝手に読み替えず、作業を止めて人間に伝えます。SkillのMINORのほうが新しい場合はSkillに従います。Agentは宣言の更新を提案できますが、無断で変更してはいけません。
@@ -333,6 +343,16 @@ uv run scripts/kfd_lint.py path/to/project
 
 これは機械的な検査であり、Knowledge Reviewの代わりにはなりません。
 
+## スキル自体の評価
+
+`evals/` には、プロジェクトのlintとは別に、Skillに従うAgentの振る舞いを確認するシナリオがあります。利用するAgentのコマンドを指定して実行します。
+
+```sh
+python3 evals/run_evals.py --agent-cmd '...'
+```
+
+コマンドの例、シナリオの選択、結果の見方は [評価ガイド](evals/README.md)を参照してください。
+
 ## Skillリポジトリの構成
 
 ```text
@@ -343,6 +363,7 @@ examples/           書き方を確認するためのサンプル
 schema/             KFDファイルのJSON Schema
 scripts/            任意で使うプロジェクトlinter
 tests/              linterのテスト
+evals/              Skillの振る舞いを確認するシナリオと評価ハーネス
 tools/              リポジトリの保守用チェック
 VERSION             Skillのバージョン
 README.md           English

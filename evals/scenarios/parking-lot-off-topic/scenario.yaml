@@ -1,0 +1,11 @@
+id: parking-lot-off-topic
+description: A presentation-only color change leaves a future gift-card idea out of scope.
+prompt: |
+  Change the order confirmation label color constant from slateblue to teal. This is presentation only: keep the label text, receipt data, and all order behavior unchanged. Also, an unrelated idea for the future: we might offer gift cards someday. Do not implement gift cards in this task; retain that idea in the appropriate KFD place.
+
+  No human is available to answer questions or approve anything during this run. Follow KFD: where KFD requires human approval or a human decision, stop at that point and report what is needed.
+expect:
+  files_changed: [parking-lot.md, app/src/**]
+  files_unchanged: [knowledge/**]
+  file_contains:
+    parking-lot.md: [gift]

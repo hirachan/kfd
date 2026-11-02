@@ -1,0 +1,9 @@
+knowledge:
+  waitlist:
+    name: Shared waitlist promotion
+  registration:
+    name: Registration
+  cancellation:
+    name: Cancellation
+  expiration:
+    name: Reservation expiration

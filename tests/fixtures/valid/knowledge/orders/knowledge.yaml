@@ -7,6 +7,12 @@ contract:
     access:
       - id: own-only
         rule: Return only the customer's orders.
+        applies_when: A customer requests their history.
+        uses: [profiles/stable-id]
+      - id: public-history
+        rule: Publish all customers' orders.
+        status: retired
+        superseded_by: [own-only]
     display_rules:
       - id: newest-first
         rule: Show newest orders first.

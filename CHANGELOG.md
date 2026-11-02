@@ -3,6 +3,26 @@
 All notable changes to Knowledge-First Development (KFD) are documented here.
 This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), with the newest release first.
 
+## [7.6.0] - 2026-11-02
+
+### Added
+
+- `references/consistency.md` for detailed consistency procedures.
+- Optional rule fields `applies_when`, `uses`, `status`, and `superseded_by`, with linter checks.
+- Generated-view registration through `views` in the index, a `kfd-sources` header with source hashes, `{unit-id/rule-id}` citations, `--view-header`, and stale-view detection.
+- Approval recording through the `KFD-Review: approved` trailer and explicit behavior when no human is available.
+- A standard Parking Lot tag vocabulary.
+- Guidance for `CLAUDE.md`, Cursor, Gemini, and Copilot instruction files.
+- `checkpoint.yaml` is gitignored by default.
+- Behavior scenarios in `evals/` and the `evals/run_evals.py` harness.
+
+### Changed
+
+- Consolidated repeated consistency rules in `SKILL.md` into one Consistency gate; moved detailed procedures to `references/consistency.md`.
+- Shortened the Tests and Generated views sections in favor of `references/knowledge-model.md`.
+- Updated examples with a single-language Parking Lot, a traceable userstories view, and rule lifecycle fields.
+- Existing 7.5 projects need no changes; all new fields are optional.
+
 ## [7.5.0] - 2026-11-02
 
 ### Added

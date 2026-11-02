@@ -81,6 +81,28 @@ contract:
 
 Group names use lowercase words separated by hyphens or underscores. Groups organize rules for humans; they are not part of rule IDs. A fully qualified reference is `<unit-id>/<rule-id>`, such as `participant-order-history/own-orders-only`.
 
+### Rule lifecycle and reuse
+
+All lifecycle fields are optional:
+
+- `applies_when` is a non-empty, human-language applicability condition. Without it, the rule applies throughout the unit's scope.
+- `uses` is an array of shared rule references whose conditions this rule relies on instead of restating them. Use `<rule-id>` within the same unit or `<unit-id>/<rule-id>` across units.
+- `status` is `active` (the default when absent) or `retired`.
+- `superseded_by` is a non-empty array of rule references, allowed only with `status: retired`.
+
+```yaml
+contract:
+  rules:
+    - id: own-orders-only
+      rule: ログイン参加者は自分の注文だけを閲覧できる。
+    - id: current-payment-state
+      applies_when: 注文履歴で支払い・返金状態を表示するとき。
+      uses: [own-orders-only]
+      rule: 支払いと返金は現在の確定状態を表示する。
+```
+
+Normally delete retired rules: Git is the history. Retain a retired rule only when something still needs to refer to it, such as `decisions.yaml` `affects_rules` or an explanation of existing data. Add `superseded_by` when applicable. Decision references may target retired rules; active rules must not rely on them.
+
 ## Mapping
 
 Implementation and tests are mapping information, not top-level product meaning.
@@ -152,6 +174,8 @@ def test_profile_birth_date_is_used_for_insurance_quote():
 
 A product-meaning change without suitable conformance coverage is incomplete.
 
+Tests are organized primarily around Knowledge Units, not source-code layout. A unit may map to `app/tests/<knowledge-id>/` while its implementation spans a different structure under `app/src/`. Do not force this layout onto projects whose framework or established structure makes another layout more natural. Knowledge boundaries and source-code boundaries do not have to match.
+
 ## Decisions
 
 An optional unit-local `decisions.yaml` records selected historical decisions. Quote dates so they remain strings. `affects_rules` accepts local `<rule-id>` references for the same unit or qualified `<unit-id>/<rule-id>` references:
@@ -190,13 +214,16 @@ It checks:
 - catalog/file agreement, unit directory IDs, and duplicate rule IDs;
 - mapping path existence, safe relative paths, and primary ownership overlaps;
 - dependency targets, conformance markers, missing rule evidence, and decision rule references;
-- the `AGENTS.md` version declaration and compatibility, plus legacy index metadata warnings.
+- the `AGENTS.md` version declaration and compatibility, plus legacy index metadata warnings;
+- unresolved `uses` or `superseded_by` references, a rule using itself, active rules using retired rules, and `superseded_by` targets that are retired (errors);
+- conformance markers referencing retired rules (warning: update or remove the test); retired rules do not receive missing-conformance-evidence warnings;
+- registered view paths, generated headers and source units, source hashes, and inline rule citations (see below).
 
 The linter does not check semantic consistency or establish that implementation and tests satisfy the product meaning.
 
 ## Generated human views
 
-`userstories.md` and similar integrated documents are generated views, not a second source of truth.
+`userstories.md` and similar integrated documents are generated views, not a second source of truth. When asked for a complete human-readable specification, read all relevant Knowledge Units and generate an integrated view rather than maintaining a separate specification.
 
 When regenerating a view:
 
@@ -206,6 +233,50 @@ When regenerating a view:
 - omit implementation details unless the view requires them;
 - never invent rules, states, permissions, or guarantees;
 - mark the view as generated and not directly editable.
+
+Register generated views in the optional top-level `views` array in `knowledge/index.yaml`:
+
+```yaml
+knowledge:
+  participant-order-history:
+    name: 参加者向け注文履歴
+views:
+  - userstories.md
+```
+
+View paths are project-relative, use `/` separators, and must not be absolute or contain `..` segments, just like mapping paths. Projects without `views` are unaffected by view checks.
+
+Every generated view starts with this exact header as its first non-whitespace content:
+
+```html
+<!--
+GENERATED FROM KFD KNOWLEDGE. DO NOT EDIT DIRECTLY.
+kfd-sources:
+  participant-order-history: 3f2a9c1b7e44
+-->
+```
+
+Include one `  <unit-id>: <hash>` line per source unit, sorted by unit ID. The hash is the first 12 lowercase hexadecimal characters of SHA-256 of that unit's `knowledge.yaml` bytes after converting CRLF to LF.
+
+Use the linter to obtain the header when regenerating a view:
+
+```sh
+python3 scripts/kfd_lint.py <project-root> --view-header
+python3 scripts/kfd_lint.py <project-root> --view-header=participant-order-history,checkout-orders
+```
+
+`--view-header` prints the header for all index units, sorted; `--view-header=a,b` selects a subset. These commands exit `0` on success or `2` with a message for an unknown unit or missing index.
+
+Every guarantee or rule sentence in a view should cite the supporting rules immediately after the sentence: `{<unit-id>/<rule-id>}` or, for multiple rules, `{a/x, b/y}`. For example:
+
+```text
+ログイン参加者は自分の注文だけを閲覧できる。 {participant-order-history/own-orders-only}
+```
+
+For each registered view the linter reports:
+
+- errors for invalid or missing paths, missing or malformed headers or `kfd-sources`, unknown source units, and citations of unknown rules;
+- warnings for stale source hashes (regenerate the view), citations of retired rules, and citations from units not listed in `kfd-sources`.
 
 ## Knowledge Unit boundaries
 

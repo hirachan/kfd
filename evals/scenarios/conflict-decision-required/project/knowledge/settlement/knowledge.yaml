@@ -1,0 +1,14 @@
+id: settlement
+name: Settlement cancellation quotes
+purpose:
+  why: Quote the fee that will be charged when a booking cancellation settles.
+contract:
+  rules:
+    - id: early-cancellation-fee
+      status: active
+      applies_when: A confirmed booking is cancelled at least 24 hours before departure.
+      rule: The cancellation fee for that booking must be five pounds, including the fee shown to the customer.
+mapping:
+  implementation:
+    primary: [app/src/settlement_quotes.py]
+  tests: [app/tests/settlement/]

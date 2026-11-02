@@ -35,8 +35,17 @@ contract:
         rule: |
           商品名、種類、単価、数量、合計は現在の商品設定ではなく注文時のスナップショットを表示する。
       - id: current-payment-state
+        applies_when: 注文履歴で支払い・返金状態を表示するとき。
+        uses:
+          - own-orders-only
         rule: |
           支払いと返金は現在の確定状態を表示する。
+      - id: hide-payment-internals
+        rule: |
+          決済サービスの内部エラーや内部識別子は表示しない。
+      - id: empty-history-state
+        rule: |
+          注文がない場合は空の状態を表示する。
 
   states: []
   transitions: []

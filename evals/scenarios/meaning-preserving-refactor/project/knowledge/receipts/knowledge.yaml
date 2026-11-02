@@ -1,0 +1,12 @@
+id: receipts
+name: Receipt totals
+purpose:
+  why: Give shoppers an exact, readable total in pounds.
+contract:
+  rules:
+    - id: total-format
+      rule: A receipt displays Total followed by the amount in pounds with exactly two decimal places, converting integer pence without rounding.
+mapping:
+  implementation:
+    primary: [app/src/receipts.py]
+  tests: [app/tests/receipts/]

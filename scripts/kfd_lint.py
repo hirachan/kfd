@@ -7,6 +7,7 @@
 
 import argparse
 import datetime
+import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -16,6 +17,10 @@ import sys
 VERSION_RE = re.compile(r"([0-9]+)\.([0-9]+)(?:\.([0-9]+))?\Z")
 REFERENCE = r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
 MARKER_RE = re.compile(r"Conforms to\s+(" + REFERENCE + r"(?:\s*,\s*" + REFERENCE + r")*)")
+CITATION_RE = re.compile(r"(?<!\{)\{(" + REFERENCE + r"(?:\s*,\s*" + REFERENCE + r")*)\}(?!\})")
+VIEW_HEADER_RE = re.compile(
+    r"\A\s*<!--\nGENERATED FROM KFD KNOWLEDGE\. DO NOT EDIT DIRECTLY\.\n"
+    r"kfd-sources:\n((?:  [a-z0-9]+(?:-[a-z0-9]+)*: [0-9a-f]{12}\n)*)-->(?:\n|\Z)")
 MAX_TEXT_SIZE = 1024 * 1024
 
 
@@ -45,6 +50,18 @@ def rules_in(unit):
 def version_tuple(text):
     match = VERSION_RE.fullmatch(text)
     return tuple(int(value or 0) for value in match.groups()) if match else None
+
+
+def unit_hash(root, unit_id):
+    raw = (root / "knowledge" / unit_id / "knowledge.yaml").read_bytes()
+    return hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest()[:12]
+
+
+def view_header(root, unit_ids):
+    lines = ["<!--", "GENERATED FROM KFD KNOWLEDGE. DO NOT EDIT DIRECTLY.", "kfd-sources:"]
+    lines.extend("  {}: {}".format(unit_id, unit_hash(root, unit_id)) for unit_id in sorted(unit_ids))
+    return "\n".join(lines + ["-->"]) + "\n"
+
 
 
 class Linter:
@@ -138,6 +155,58 @@ class Linter:
             self.error(source, "mapping directory path must end with '/': {}".format(value))
         return target
 
+    def check_views(self, index, known, invalid_units, refs, retired):
+        index_path = self.root / "knowledge/index.yaml"
+        for value in sorted(set(index.get("views", []))):
+            path = PurePosixPath(value)
+            if not value or path.is_absolute() or re.match(r"^[A-Za-z]:", value) or ".." in path.parts or "\\" in value:
+                self.error(index_path, "invalid view path: {} (use project-relative / paths without '..')".format(value))
+                continue
+            target = self.root / value
+            if not target.is_file():
+                self.error(index_path, "view path must be an existing file: {}".format(value))
+                continue
+            try:
+                text = target.read_text(encoding="utf-8")
+            except (OSError, UnicodeError) as exc:
+                self.error(target, "cannot read view: {}".format(exc))
+                continue
+            match = VIEW_HEADER_RE.match(text)
+            if match is None:
+                self.error(target, "missing or malformed generated view header / kfd-sources")
+                continue
+            entries = [line.strip().split(": ", 1) for line in match.group(1).splitlines()]
+            source_ids = [entry[0] for entry in entries]
+            if source_ids != sorted(set(source_ids)):
+                self.error(target, "malformed kfd-sources: source units must be unique and sorted")
+            sources = set(source_ids)
+            for unit_id, recorded_hash in entries:
+                if unit_id in invalid_units:
+                    continue
+                if unit_id not in known:
+                    self.error(target, "unknown source unit {}".format(unit_id))
+                    continue
+                try:
+                    current_hash = unit_hash(self.root, unit_id)
+                except OSError:
+                    # The catalog/unit loader reports missing or unreadable units.
+                    continue
+                if recorded_hash != current_hash:
+                    self.warn(target, "stale source hash for {}; regenerate the view".format(unit_id))
+            for line_number, line in enumerate(text[match.end():].splitlines(), text[:match.end()].count("\n") + 1):
+                for citation in CITATION_RE.finditer(line):
+                    for reference in re.split(r"\s*,\s*", citation.group(1)):
+                        unit_id = reference.split("/", 1)[0]
+                        if unit_id in invalid_units:
+                            continue
+                        if reference not in refs:
+                            self.error(target, "line {}: unknown citation rule {}".format(line_number, reference))
+                        elif reference in retired:
+                            self.warn(target, "line {}: citation references retired rule {}".format(line_number, reference))
+                        if unit_id not in sources:
+                            self.warn(target, "line {}: citation unit {} is not listed in kfd-sources".format(line_number, unit_id))
+
+
     def run(self):
         index_path = self.root / "knowledge/index.yaml"
         index = self.load(index_path, "index")
@@ -160,9 +229,10 @@ class Linter:
                 units[path.parent.name] = (path, unit)
                 if unit["id"] != path.parent.name:
                     self.error(path, "unit id {} does not match directory {}".format(unit["id"], path.parent.name))
-        invalid_units = found - set(units)
+        invalid_units = (found | set(catalog)) - set(units)
         known = set(catalog) | found
         refs = set()
+        retired = set()
         ownership = []
         test_files = set()
         for unit_id, (path, unit) in sorted(units.items()):
@@ -173,6 +243,8 @@ class Linter:
                     self.error(path, "duplicate rule id: {}".format(rule_id))
                 seen.add(rule_id)
                 refs.add(unit_id + "/" + rule_id)
+                if rule.get("status") == "retired":
+                    retired.add(unit_id + "/" + rule_id)
             for kind, dependencies in unit.get("dependencies", {}).items():
                 for dependency in sorted(dependencies):
                     if dependency not in known:
@@ -203,6 +275,23 @@ class Linter:
                         self.error(left[3], message)
                     else:
                         self.warn(left[3], message)
+        for unit_id, (path, unit) in sorted(units.items()):
+            for rule in rules_in(unit):
+                own_ref = unit_id + "/" + rule["id"]
+                for field in ("uses", "superseded_by"):
+                    for reference in rule.get(field, []):
+                        qualified = reference if "/" in reference else unit_id + "/" + reference
+                        if qualified.split("/", 1)[0] in invalid_units:
+                            continue
+                        if qualified not in refs:
+                            self.error(path, "{}.{}: unresolved rule ref {}".format(rule["id"], field, reference))
+                        elif field == "uses":
+                            if qualified == own_ref:
+                                self.error(path, "{} uses itself".format(own_ref))
+                            if own_ref not in retired and qualified in retired:
+                                self.error(path, "{} uses retired rule {}".format(own_ref, qualified))
+                        elif qualified in retired:
+                            self.error(path, "{} superseded_by targets retired rule {}".format(own_ref, qualified))
         evidence = set()
         for path in sorted(test_files):
             try:
@@ -223,7 +312,9 @@ class Linter:
                             self.error(path, "line {}: unknown conformance ref {}".format(line_number, reference))
                         else:
                             evidence.add(reference)
-        for reference in sorted(refs - evidence):
+                            if reference in retired:
+                                self.warn(path, "line {}: conformance marker references retired rule {}; update or remove the test".format(line_number, reference))
+        for reference in sorted(refs - evidence - retired):
             unit_id = reference.split("/", 1)[0]
             self.warn(units[unit_id][0], "no conformance evidence for {}".format(reference))
         for path in sorted((self.root / "knowledge").glob("*/decisions.yaml")):
@@ -237,6 +328,8 @@ class Linter:
                         continue
                     if qualified not in refs:
                         self.error(path, "decisions[{}].affects_rules: unresolved rule ref {}".format(position, reference))
+        if index is not None:
+            self.check_views(index, known, invalid_units, refs, retired)
 
     def print_findings(self):
         for path, level, message in sorted(self.findings):
@@ -251,6 +344,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("project_root", nargs="?", default=".")
     parser.add_argument("--strict", action="store_true", help="treat warnings as a failing result")
+    parser.add_argument("--view-header", nargs="?", const="", metavar="UNITS", help="print a generated view header (optionally for comma-separated unit ids)")
     args = parser.parse_args(argv)
     try:
         import yaml
@@ -274,6 +368,22 @@ def main(argv=None):
         print("Cannot load KFD schemas/VERSION: {}".format(exc), file=sys.stderr)
         return 2
     linter = Linter(root, schemas, skill_version, yaml, Draft202012Validator)
+    if args.view_header is not None:
+        index = linter.load(root / "knowledge/index.yaml", "index")
+        if index is None:
+            linter.print_findings()
+            return 2
+        selected = set(index["knowledge"]) if args.view_header == "" else set(args.view_header.split(","))
+        unknown = selected - set(index["knowledge"])
+        if unknown:
+            print("Unknown view source unit(s): {}".format(", ".join(sorted(unknown))), file=sys.stderr)
+            return 2
+        try:
+            print(view_header(root, selected), end="")
+        except OSError as exc:
+            print("Cannot read view source: {}".format(exc), file=sys.stderr)
+            return 2
+        return 0
     linter.run()
     errors, warnings = linter.print_findings()
     return 1 if errors or (args.strict and warnings) else 0

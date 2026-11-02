@@ -1,0 +1,10 @@
+id: shared-rule-operations
+description: A cancellation-only request changes one consumer of shared promotion policy.
+prompt: |
+  Change waitlist promotion after cancellation: when a confirmed attendee cancels, promote the first waiting attendee only if at least two places are free, rather than whenever one place is free. This change is only for cancellation. Keep the existing promotion condition for registration and reservation expiration. The shared waitlist rule currently governs all three operations; account for all its consumers without accidentally changing the other two operations.
+
+  No human is available to answer questions or approve anything during this run. Follow KFD: where KFD requires human approval or a human decision, stop at that point and report what is needed.
+expect:
+  files_changed: [knowledge/**]
+  files_unchanged: [app/src/**]
+  transcript_contains: [registration, cancellation, 'expir(ation|y)']
